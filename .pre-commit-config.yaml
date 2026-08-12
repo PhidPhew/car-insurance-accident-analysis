@@ -1,3 +1,7 @@
+# NOTE: ruff and mypy revs here MUST match the exact pins in pyproject.toml
+# (dependency-groups.dev). A version mismatch between the local venv and this
+# hook makes ruff-format flip a file's style back and forth on every commit -
+# a real reproducibility failure, not just an annoyance. Bump both together.
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.16.2

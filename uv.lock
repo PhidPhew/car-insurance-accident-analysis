@@ -2629,12 +2629,12 @@ requires-dist = [
 dev = [
     { name = "ipykernel", specifier = ">=6.29" },
     { name = "jupyter", specifier = ">=1.1" },
-    { name = "mypy", specifier = ">=1.11" },
+    { name = "mypy", specifier = "==2.3.0" },
     { name = "pandas-stubs", specifier = ">=2.2" },
     { name = "pre-commit", specifier = ">=3.8" },
     { name = "pytest", specifier = ">=8.3" },
     { name = "pytest-cov", specifier = ">=5.0" },
-    { name = "ruff", specifier = ">=0.6" },
+    { name = "ruff", specifier = "==0.16.2" },
     { name = "types-requests", specifier = ">=2.32" },
 ]
 

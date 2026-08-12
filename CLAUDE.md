@@ -185,13 +185,35 @@ If it parses as a float in [0,1), multiply by 24. `0:00` appears 219 times — m
 | `รถอื่นๆ` | `อื่นๆ` | 94.6 |
 
 ⚠️ **Do not drop these for being >90% null.** They are null *in blocks by source year*, not at
-random — different years used different column names. **Coalesce them.**
+random — different years used different column names. **Coalesce them** — but see the correction
+below, this applies to only 4 of the 5 rows in the table above, not all 5.
 
-**Phase 1 Task 4 verified 4 of these 5 pairs are cleanly mutually exclusive** (zero rows where both
-old and new are populated — safe to coalesce with no precedence decision needed). **The 5th pair is
-not:** `บริเวณที่เกิดเหตุ` and `บริเวณที่เกิดเหตุอื่น` are **both populated on 7,606 rows (4.7%)**
-simultaneously. A plain coalesce needs an explicit precedence rule for this pair (which value wins
-when both are present) — Phase 2 decision, not resolved here.
+✅ **Confirmed old-name/new-name pairs, safe to coalesce (Phase 1 Task 4, exhaustive check, all
+161,307 rows):** the 3 vehicle-type pairs and `รถอื่นๆ`/`อื่นๆ` — **zero row-overlap** in every
+case, and identical population rates across all four (82.7% old / 5.4% new). These are genuinely one
+field renamed at a fixed cutover point.
+
+⚠️ **`บริเวณที่เกิดเหตุ` / `บริเวณที่เกิดเหตุอื่น` is NOT a twin-column pair — the whole row above is
+wrong for this one.** Two hypotheses were checked and refuted (Phase 1 Task 4, owner-requested
+follow-up):
+
+1. ~~Old name replaced by new name~~ — **false.** `บริเวณที่เกิดเหตุ` is populated across *every*
+   year 2019–2026 (91.7% overall, 90.2% even within 2026 alone). It was never phased out.
+2. ~~`บริเวณที่เกิดเหตุอื่น` is a free-text detail field used when the primary column is "อื่นๆ"
+   (other)~~ — **false.** Checked all 7,606 rows where both are populated: **0.0%** have
+   `บริเวณที่เกิดเหตุ = "อื่นๆ"`. The primary column holds ordinary values
+   (`ทางตรง+ไม่มีความลาดชัน`, `ทางโค้งกว้าง+ไม่มีความลาดชัน`, ...) in every one of those rows.
+
+**What the data actually shows:** `บริเวณที่เกิดเหตุอื่น` is populated **only in `accident2026.csv`**
+(8,462 of that file's 8,738 rows; 0 rows in any other year) — appearing *alongside*, not instead of,
+the primary column (7,606 of those rows have both). Paired values describe the same road-geometry
+concept with an overlapping-but-different taxonomy (e.g. primary `ทางตรง+ไม่มีความลาดชัน` "straight,
+no slope" vs. secondary `ทางตรง+ที่ราบ` "straight, flat/level" on the same row). This reads as the
+source system introducing a second, more granular classification scheme starting in the 2026 file,
+captured in parallel with the original — **not** a rename, **not** an "other" detail field. 276 rows
+have only the primary value, 856 have only the secondary. **Unresolved — needs Phase 2 investigation
+(possibly asking the source agency what changed in 2026), not a plain coalesce and not automatic
+routing into `dim_accident_context` as an "other" detail either.**
 
 ### 🟠 P4 — Inconsistent categories
 `มูลเหตุสันนิษฐาน` has 120 distinct values, should collapse to ~20.
@@ -210,14 +232,37 @@ Use committed mapping tables. **Never rely on automatic fuzzy matching alone** �
 ⚠️ **Correction (Phase 1 Task 4):** this entry originally said the duplication was cross-year reuse
 and that `(ACC_CODE, year)` is therefore the real key. **Verified false: zero `ACC_CODE` values span
 more than one year.** The composite key does not resolve the duplication at all — grouping by
-`ACC_CODE` alone and by `(ACC_CODE, year)` produce the identical 1,641 duplicate groups. A random
-sample of 5 duplicate groups showed a consistent pattern instead: rows share `ACC_CODE`, year,
-province, road, KM, and date/time exactly, but **disagree on the free-text description columns**
-(`บริเวณที่เกิดเหตุ`, `ลักษณะการเกิดเหตุ`, `มูลเหตุสันนิษฐาน` — sometimes populated on one row and
-null on another, sometimes differently worded). This reads as the same real-world accident entered
-more than once with inconsistent characterization, not a clean key problem — Phase 2 needs a
-row-selection or merge rule (e.g. prefer the row with fewer nulls in the description columns), not
-just a wider key.
+`ACC_CODE` alone and by `(ACC_CODE, year)` produce the identical 1,641 duplicate groups.
+
+**Full investigation (owner-requested follow-up), all 1,641 groups checked exhaustively, not sampled:**
+
+- **Agency:** 100% same-agency (1,641 / 1,641). Zero cross-agency pairs. This rules out systemic
+  double-reporting (e.g. a highway/rural-road junction reported by two agencies) — every duplicate
+  is one agency's own record appearing twice.
+- **Casualty counts:** 100% agree (1,641 / 1,641) across all four columns (`ผู้เสียชีวิต`,
+  `ผู้บาดเจ็บสาหัส`, `ผู้บาดเจ็บเล็กน้อย`, `รวมจำนวนผู้บาดเจ็บ`) — **zero conflicts.** Province, road,
+  KM, and year are also 100% identical within every group. So the numeric reconciliation figures are
+  never ambiguous, regardless of which row in a group is eventually kept.
+- **What *does* differ:** free-text description columns, and — in 448 of the 1,641 groups (27%) —
+  the accident date. Every one of those 448 date differences (checked exhaustively, not a subset) is
+  a **pure day/month digit transposition** under the file's own established format (e.g. one row
+  reads `4/12/2023`, the duplicate reads `12/4/2023`, both from `accident2023.csv` which is MDY —
+  April 12 vs. December 4). This is a specific, identifiable transcription-error pattern, not random
+  date corruption, and it strengthens rather than weakens the "same event, entered twice" reading.
+- **Free-text conflict rate varies sharply by column** (of the 1,641 groups): `บริเวณที่เกิดเหตุ`
+  true conflicts in 1,216 (74%) — "prefer the more complete row" **will not work** for this column,
+  most disagreements are non-null vs. non-null; `ลักษณะการเกิดเหตุ` true conflicts in only 66 (4%),
+  969 (59%) are a simple null-vs-populated gap — "most complete" works here; `มูลเหตุสันนิษฐาน` true
+  conflicts in 340 (21%), 1,172 (71%) identical; `วันที่รายงาน` true conflicts in 544 (33%).
+
+**Fatality reconciliation — both numbers, no rule chosen yet (owner's call):**
+- **Pre-dedup (current basis, all 161,307 rows): 21,814 fatalities** — this is the number already
+  recorded below in §8 and is what the source files sum to as-is.
+- **Post-dedup (1 row per `ACC_CODE` group, 159,605 rows): 21,497 fatalities** (317 fewer). Since
+  casualty counts agree 100% within every group, this number is exact and does not depend on *which*
+  row of a group is kept — only the free-text tie-break (still undecided) affects anything else.
+- **§8's reconciliation target is currently pre-dedup (21,814).** Whether it should switch to
+  post-dedup (21,497) is an open decision — not made here.
 
 ### 🟠 P6 — Province names don't match across sources
 Accidents `ลพบุรี` · flood `จ.นนทบุรี` (prefix) · R35mm `Bangkok` (English) · registration `กระบี่`
@@ -308,8 +353,13 @@ Requires `docs/simulation_assumptions.md`, attached to the report.
 - ⚠️ `total_injury_count` is derived — never sum it alongside its two components
 - ⚠️ `LATITUDE`/`LONGITUDE` are non-additive — never sum or naively average
 
-**Reconciliation targets (full file, 2019–2026):** 161,307 accidents · 21,814 fatalities ·
-134,313 total injuries · 248,825 vehicles involved
+**Reconciliation targets (full file, 2019–2026) — currently PRE-DEDUP:** 161,307 accidents ·
+21,814 fatalities · 134,313 total injuries · 248,825 vehicles involved
+
+**Post-dedup alternative (see P5):** 159,605 accidents (1,702 fewer) · 21,497 fatalities (317 fewer,
+exact — casualty counts agree 100% within every duplicate group, so this number doesn't depend on
+which row of a group is kept). Injury/vehicle totals post-dedup not yet computed. **Which basis is
+the real target is not yet decided** — do not silently switch between them in later phases.
 
 ### `fact_underwriting_monthly`
 - **Grain:** *one month × one province × one vehicle group × one cover class* (~92,400 rows)

@@ -3,11 +3,15 @@ from pathlib import Path
 import polars as pl
 
 from rri.utils.profiling import (
+    check_value_when_both_populated,
+    check_within_group_agreement,
     classify_date_string,
     classify_time_string,
+    compute_dedup_impact,
     detect_delimiter,
     detect_line_ending,
     find_null_correlated_column_groups,
+    population_rate_by_group,
     profile_column,
     profile_csv_file,
     profile_date_column_formats,
@@ -300,3 +304,144 @@ class TestFileMetadataAndCsvProfile:
         assert result.duplicates.full_row_duplicate_count == 1
         column_names = {c.name for c in result.columns}
         assert column_names == {"code", "year", "value"}
+
+
+class TestCheckWithinGroupAgreement:
+    def test_all_groups_agree(self) -> None:
+        df = pl.DataFrame({"key": ["A", "A", "B", "B"], "agency": ["x", "x", "y", "y"]})
+        result = check_within_group_agreement(df, ["key"], "agency")
+        assert result.groups_checked == 2
+        assert result.agree_count == 2
+        assert result.conflict_count == 0
+        assert result.agree_pct == 100.0
+
+    def test_conflicting_group_detected(self) -> None:
+        df = pl.DataFrame({"key": ["A", "A", "B", "B"], "agency": ["x", "z", "y", "y"]})
+        result = check_within_group_agreement(df, ["key"], "agency")
+        assert result.agree_count == 1
+        assert result.conflict_count == 1
+
+    def test_null_vs_populated_counts_as_conflict(self) -> None:
+        df = pl.DataFrame({"key": ["A", "A"], "note": [None, "text"]})
+        result = check_within_group_agreement(df, ["key"], "note")
+        assert result.conflict_count == 1
+        assert result.agree_count == 0
+
+    def test_single_row_groups_are_not_counted(self) -> None:
+        df = pl.DataFrame({"key": ["A", "B", "C"], "agency": ["x", "y", "z"]})
+        result = check_within_group_agreement(df, ["key"], "agency")
+        assert result.groups_checked == 0
+
+    def test_null_group_keys_excluded_not_lumped_into_one_group(self) -> None:
+        # Regression case: many unrelated rows sharing a null key must not
+        # be treated as one giant duplicate group by polars' group_by.
+        df = pl.DataFrame(
+            {
+                "key": ["A", "A", None, None, None],
+                "agency": ["x", "x", "p", "q", "r"],
+            }
+        )
+        result = check_within_group_agreement(df, ["key"], "agency")
+        assert result.groups_checked == 1  # only the real "A" group
+        assert result.agree_count == 1
+        assert result.conflict_count == 0
+
+    def test_agree_pct_zero_when_no_groups_checked(self) -> None:
+        df = pl.DataFrame({"key": ["A"], "agency": ["x"]})
+        result = check_within_group_agreement(df, ["key"], "agency")
+        assert result.agree_pct == 0.0
+
+
+class TestComputeDedupImpact:
+    def test_collapses_duplicate_groups_to_one_row(self) -> None:
+        df = pl.DataFrame(
+            {
+                "code": ["A1", "A1", "A2"],
+                "fatalities": [2, 2, 0],
+            }
+        )
+        impact = compute_dedup_impact(df, "code", ["fatalities"])
+        assert impact.rows_before == 3
+        assert impact.rows_after == 2
+        assert impact.sums_before["fatalities"] == 4.0
+        assert impact.sums_after["fatalities"] == 2.0
+
+    def test_null_key_rows_pass_through_unchanged(self) -> None:
+        df = pl.DataFrame(
+            {
+                "code": ["A1", "A1", None, None],
+                "fatalities": [1, 1, 5, 5],
+            }
+        )
+        impact = compute_dedup_impact(df, "code", ["fatalities"])
+        # both null-key rows survive (nothing to group them by), only the
+        # true duplicate pair (A1, A1) collapses to 1
+        assert impact.rows_after == 3
+        assert impact.sums_after["fatalities"] == 11.0  # 1 + 5 + 5
+
+    def test_no_duplicates_leaves_totals_unchanged(self) -> None:
+        df = pl.DataFrame({"code": ["A1", "A2", "A3"], "fatalities": [1, 2, 3]})
+        impact = compute_dedup_impact(df, "code", ["fatalities"])
+        assert impact.rows_before == impact.rows_after == 3
+        assert impact.sums_before == impact.sums_after == {"fatalities": 6.0}
+
+
+class TestCheckValueWhenBothPopulated:
+    def test_matches_hypothesis_when_expected_value_dominates(self) -> None:
+        df = pl.DataFrame(
+            {
+                "primary": ["other", "other", "other"],
+                "secondary": ["detail1", "detail2", "detail3"],
+            }
+        )
+        result = check_value_when_both_populated(df, "primary", "secondary", "other")
+        assert result.rows_both_populated == 3
+        assert result.matching_value_count == 3
+        assert result.matching_pct == 100.0
+
+    def test_refutes_hypothesis_when_expected_value_absent(self) -> None:
+        df = pl.DataFrame(
+            {
+                "primary": ["straight_road", "curved_road"],
+                "secondary": ["flat", "hilly"],
+            }
+        )
+        result = check_value_when_both_populated(df, "primary", "secondary", "other")
+        assert result.matching_value_count == 0
+        assert result.matching_pct == 0.0
+
+    def test_ignores_rows_where_either_is_null(self) -> None:
+        df = pl.DataFrame(
+            {
+                "primary": ["other", None, "other"],
+                "secondary": ["x", "y", None],
+            }
+        )
+        result = check_value_when_both_populated(df, "primary", "secondary", "other")
+        assert result.rows_both_populated == 1
+
+    def test_zero_rows_both_populated_has_zero_pct_not_division_error(self) -> None:
+        df = pl.DataFrame({"primary": [None], "secondary": [None]})
+        result = check_value_when_both_populated(df, "primary", "secondary", "other")
+        assert result.matching_pct == 0.0
+
+
+class TestPopulationRateByGroup:
+    def test_reports_total_and_populated_counts_per_group(self) -> None:
+        df = pl.DataFrame(
+            {
+                "year": ["2025", "2025", "2026", "2026", "2026"],
+                "value": ["a", None, "b", None, None],
+            }
+        )
+        result = population_rate_by_group(df, "year", "value")
+        by_year = {row["year"]: row for row in result.to_dicts()}
+        assert by_year["2025"]["total_rows"] == 2
+        assert by_year["2025"]["populated_rows"] == 1
+        assert by_year["2026"]["total_rows"] == 3
+        assert by_year["2026"]["populated_rows"] == 1
+
+    def test_group_with_zero_population_reports_zero(self) -> None:
+        df = pl.DataFrame({"year": ["2019", "2019"], "value": [None, None]})
+        result = population_rate_by_group(df, "year", "value")
+        assert result["populated_rows"].to_list() == [0]

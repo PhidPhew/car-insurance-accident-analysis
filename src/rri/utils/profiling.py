@@ -370,3 +370,157 @@ def profile_csv_file(path: Path, candidate_key_columns: list[str] | None = None)
         duplicates=duplicates,
         null_correlated_pairs=null_pairs,
     )
+
+
+# --------------------------------------------------------------------------
+# Duplicate-group deep-dive (P5-style investigation: is a column consistent
+# within a group of rows sharing a key, and what happens if the group is
+# collapsed to one row?)
+# --------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class GroupAgreementResult:
+    """For groups of rows sharing `group_keys`, does `check_column` hold one value per group?"""
+
+    column: str
+    groups_checked: int
+    agree_count: int
+    conflict_count: int
+
+    @property
+    def agree_pct(self) -> float:
+        return (self.agree_count / self.groups_checked * 100) if self.groups_checked else 0.0
+
+
+def check_within_group_agreement(
+    df: pl.DataFrame, group_keys: list[str], check_column: str
+) -> GroupAgreementResult:
+    """Among groups (by `group_keys`) with more than one row, does `check_column` agree?
+
+    Rows where any `group_keys` column is null are excluded first: polars'
+    `group_by` treats all nulls as one group, so e.g. grouping by ACC_CODE
+    without filtering would silently lump every row with a missing
+    ACC_CODE into a single giant "duplicate group" -- almost certainly a
+    conflict, and not a meaningful one.
+
+    A null value in `check_column` counts as distinct from a populated one
+    (so a group where one row has a value and another is null on
+    `check_column` is reported as a conflict, not an agreement) -- this
+    deliberately does not distinguish "genuinely different values" from
+    "one row is just less complete"; use two columns' worth of
+    investigation for that nuance.
+    """
+    keyed = df.filter(pl.all_horizontal([pl.col(c).is_not_null() for c in group_keys]))
+    groups = keyed.group_by(group_keys).agg(
+        pl.col(check_column).n_unique().alias("n_unique"), pl.len().alias("n_rows")
+    )
+    multi_row = groups.filter(pl.col("n_rows") > 1)
+    agree = int(multi_row.filter(pl.col("n_unique") == 1).height)
+    conflict = int(multi_row.filter(pl.col("n_unique") > 1).height)
+    return GroupAgreementResult(
+        column=check_column,
+        groups_checked=multi_row.height,
+        agree_count=agree,
+        conflict_count=conflict,
+    )
+
+
+@dataclass(frozen=True)
+class DedupImpact:
+    """Row count and column sums before/after collapsing duplicate `group_key` groups to 1 row."""
+
+    group_key: str
+    rows_before: int
+    rows_after: int
+    sums_before: dict[str, float]
+    sums_after: dict[str, float]
+
+
+def compute_dedup_impact(df: pl.DataFrame, group_key: str, sum_columns: list[str]) -> DedupImpact:
+    """Compare row counts and column sums before/after keeping 1 row per non-null `group_key`.
+
+    Rows where `group_key` is null are never deduplicated (there is nothing
+    to group them by) and pass through unchanged into the "after" total.
+    Which row is kept ("first", by input order) is arbitrary and only valid
+    as a total when `sum_columns` are known to agree within every group --
+    this does not choose a tie-break rule for columns that can disagree.
+    """
+    keyed = df.filter(pl.col(group_key).is_not_null())
+    unkeyed = df.filter(pl.col(group_key).is_null())
+    deduped_keyed = keyed.unique(subset=[group_key], keep="first", maintain_order=True)
+    after = pl.concat([deduped_keyed, unkeyed])
+
+    def sums(frame: pl.DataFrame) -> dict[str, float]:
+        return {
+            col: float(frame.get_column(col).cast(pl.Float64, strict=False).fill_null(0).sum())
+            for col in sum_columns
+        }
+
+    return DedupImpact(
+        group_key=group_key,
+        rows_before=len(df),
+        rows_after=len(after),
+        sums_before=sums(df),
+        sums_after=sums(after),
+    )
+
+
+# --------------------------------------------------------------------------
+# Column-relationship hypothesis checks (P3-style: is column B really a
+# rename of column A, or does it serve some other role?)
+# --------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ValueMatchWhenBothPopulated:
+    """When two columns are both populated, how often does one hold a given value?"""
+
+    rows_both_populated: int
+    matching_value_count: int
+
+    @property
+    def matching_pct(self) -> float:
+        return (
+            (self.matching_value_count / self.rows_both_populated * 100)
+            if self.rows_both_populated
+            else 0.0
+        )
+
+
+def check_value_when_both_populated(
+    df: pl.DataFrame, primary: str, secondary: str, expected_value: str
+) -> ValueMatchWhenBothPopulated:
+    """Among rows where both `primary` and `secondary` are populated, how often does
+    `primary` equal `expected_value`?
+
+    Built to test the hypothesis "`secondary` is a free-text detail field
+    used only when `primary` is set to some catch-all value" -- if that's
+    true, `expected_value` (the catch-all, e.g. "other") should dominate.
+    """
+    both = df.filter(pl.col(primary).is_not_null() & pl.col(secondary).is_not_null())
+    if both.height == 0:
+        # An empty frame can have an inferred dtype (e.g. Null) that doesn't
+        # support `==` against a string -- nothing to match either way.
+        return ValueMatchWhenBothPopulated(rows_both_populated=0, matching_value_count=0)
+    matching = int((both.get_column(primary) == expected_value).sum())
+    return ValueMatchWhenBothPopulated(
+        rows_both_populated=both.height, matching_value_count=matching
+    )
+
+
+def population_rate_by_group(df: pl.DataFrame, group_col: str, target_col: str) -> pl.DataFrame:
+    """For each value of `group_col`, how many rows total, and how many have `target_col` populated?
+
+    Used to check whether a column is populated consistently across time
+    (e.g. by year) or only within a specific slice -- the signal for
+    "this isn't an old-name/new-name rename, it's new in one period only."
+    """
+    return (
+        df.group_by(group_col)
+        .agg(
+            pl.len().alias("total_rows"),
+            pl.col(target_col).is_not_null().sum().alias("populated_rows"),
+        )
+        .sort(group_col)
+    )

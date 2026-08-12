@@ -318,3 +318,95 @@ for a documented problem. A cleaning rule built on "the key is
 real duplication (conflicting descriptions of the same accident) completely
 unaddressed — the kind of bug that's invisible until someone asks why two
 rows for the same crash tell different stories.
+
+---
+
+## 2026-08-12 — Follow-up: neither P5 nor P3-pair-5 was actually resolved, just diagnosed
+
+**Phase / task:** Phase 1, Task 4 deep follow-up (no code changes — pure
+investigation, `CLAUDE.md` §6/§8 updated with facts, no rule chosen)
+
+The project owner's response to the P5/P3 findings above was, correctly,
+that identifying a wrong explanation isn't the same as having a right one —
+both needed to be resolved before Task 5, not just flagged.
+
+**P5 (duplicate ACC_CODE), exhaustive checks across all 1,641 groups (not
+sampled this time):**
+- Agency: 100% same-agency. Rules out the "legitimate cross-agency
+  double-report at a highway/rural-road junction" hypothesis the owner
+  raised — every duplicate is one agency's own record twice.
+- Casualty counts: 100% agree across all four columns, and province/road/
+  KM/year are also 100% identical within every group. This matters beyond
+  P5 itself: it means the fatality reconciliation number is exact and
+  unambiguous under deduplication regardless of which row in a group is
+  eventually kept — only the free-text tie-break is still open.
+- Computed both reconciliation numbers as instructed rather than picking
+  one: pre-dedup 21,814 fatalities (161,307 rows, the current §8 baseline)
+  vs. post-dedup 21,497 (159,605 rows, exact, 317 fewer). Recorded both in
+  CLAUDE.md §8 with an explicit note that the choice between them is still
+  open — did not default to either.
+- Investigated *why* free-text columns conflict instead of just noting
+  that they do: of the 3 description columns, conflict rates vary from 4%
+  (`ลักษณะการเกิดเหตุ` — mostly a null-vs-populated gap, "keep the more
+  complete row" would work) to 74% (`บริเวณที่เกิดเหตุ` — mostly non-null
+  vs. non-null disagreement, where "more complete" is meaningless). A
+  single blanket tie-break rule would silently do the wrong thing for at
+  least one of these columns.
+- Followed up on *why* dates differ in 448 groups: every single one turned
+  out to be a pure day/month digit transposition under the file's own
+  established format (verified using the correct per-file DMY/MDY/serial
+  mapping from P1 — my first pass at this used a naive try-both-formats
+  parser and produced nonsense day-difference numbers before I caught it
+  and redid it properly). This is a specific, nameable transcription-error
+  pattern, not unexplained noise, and it supports rather than undermines
+  the "same event entered twice" reading of the whole P5 problem.
+
+**P3 pair 5, both proposed explanations checked directly against data and
+both refuted:**
+- "Old name phased out, new name replaces it" (the original CLAUDE.md
+  claim) — false: the "old" column is populated in every year 2019–2026,
+  including 90% of 2026 itself. It was never phased out.
+- "New column is a free-text detail field used when the primary column is
+  `อื่นๆ`" (the owner's alternative hypothesis) — also false: 0.0% of the
+  7,606 rows where both are populated have the primary column set to
+  `อื่นๆ`. Checked directly rather than assumed correct because it sounded
+  plausible.
+- What actually explains the data: the second column appears *only* in
+  `accident2026.csv`, populated alongside (not instead of) the first, with
+  paired values describing the same road-geometry concept under a
+  different, overlapping taxonomy. Read as the source system introducing a
+  second, more granular classification starting in the most recent
+  (partial) file — recorded in CLAUDE.md as unresolved and flagged for
+  Phase 2 to investigate further (possibly by asking the source agency),
+  not coalesced and not routed into an "other" bucket, since neither
+  action is justified by what the data actually shows.
+
+**Also closed the ruff/mypy version-mismatch gap for good:** pinned exact
+versions (not just matching floors) in both `pyproject.toml`
+(`ruff==0.16.2`, `mypy==2.3.0`) and `.pre-commit-config.yaml`, with a
+comment tying the two files together, since a `>=` floor in pyproject.toml
+would let `uv sync` silently drift to a newer version than the still-pinned
+pre-commit hook the next time dependencies are upgraded — the same failure
+mode recurring later instead of actually being closed.
+
+**Why this matters for the assignment:** the instruction to "report the
+facts and I'll decide" rather than picking a dedup/tie-break rule is itself
+worth preserving as a working pattern — investigation and decision are
+different steps, and collapsing them (by quietly picking a plausible-
+sounding rule and moving on) would have hidden a real business decision
+(is the reconciliation target pre- or post-dedup?) inside an
+implementation detail no one would think to review.
+
+**A self-caught bug while wiring this into the notebook, worth recording
+too:** `check_within_group_agreement(accidents_raw, ["ACC_CODE"], ...)`
+initially reported 1 conflicting group out of 1,642 instead of 0 out of
+1,641. Cause: polars' `group_by` treats every null key as one group, so
+the 27,932 rows with a missing `ACC_CODE` were silently lumped into a
+single giant "duplicate group" and (unsurprisingly) disagreed on agency
+and fatality count. Caught by noticing the notebook's live output
+(1,642 groups) didn't match the number already reported to the project
+owner minutes earlier (1,641, computed via an explicit `drop_nulls` in an
+ad-hoc check). Fixed at the function level, not the call site -- any
+future caller grouping by a column with nulls would hit the same trap
+otherwise. Added a regression test
+(`test_null_group_keys_excluded_not_lumped_into_one_group`).
