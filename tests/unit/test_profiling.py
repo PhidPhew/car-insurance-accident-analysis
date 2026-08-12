@@ -2,6 +2,7 @@ from datetime import date
 from pathlib import Path
 
 import polars as pl
+import pytest
 
 from rri.utils.profiling import (
     check_duplicate_date_string_consistency,
@@ -11,7 +12,9 @@ from rri.utils.profiling import (
     classify_slash_date_side_evidence,
     classify_time_string,
     compute_dedup_impact,
+    compute_report_lag_days,
     count_resolved_by_normalization,
+    count_rows_over_lag_threshold,
     detect_delimiter,
     detect_line_ending,
     discriminate_transposed_date_pairs,
@@ -19,6 +22,8 @@ from rri.utils.profiling import (
     find_null_correlated_column_groups,
     find_transposed_date_string_pairs,
     normalize_for_synonym_check,
+    parse_accident_date,
+    parse_excel_serial_date,
     parse_slash_date,
     population_rate_by_group,
     profile_column,
@@ -29,7 +34,9 @@ from rri.utils.profiling import (
     profile_json_structure,
     profile_slash_date_side_evidence,
     profile_time_column_formats,
+    report_lag_quantiles_by_group,
     sample_deterministic,
+    summarize_report_lag,
 )
 
 
@@ -807,3 +814,138 @@ class TestDiscriminateTransposedDatePairs:
         )
         assert result.resolutions[0].candidate_dates == [date(2023, 12, 4)]
         assert result.resolved_unique == 1
+
+
+class TestParseExcelSerialDate:
+    def test_known_serial(self) -> None:
+        # The real accident2020.csv anomaly noted in CLAUDE.md P1.
+        assert parse_excel_serial_date("44178") == date(2020, 12, 13)
+
+    def test_invalid_string_returns_none(self) -> None:
+        assert parse_excel_serial_date("not-a-number") is None
+
+    def test_non_positive_returns_none(self) -> None:
+        assert parse_excel_serial_date("0") is None
+        assert parse_excel_serial_date("-5") is None
+
+
+class TestParseAccidentDate:
+    def test_dmy(self) -> None:
+        assert parse_accident_date("25/3/2023", "dmy") == date(2023, 3, 25)
+
+    def test_mdy(self) -> None:
+        assert parse_accident_date("3/25/2023", "mdy") == date(2023, 3, 25)
+
+    def test_excel_serial(self) -> None:
+        assert parse_accident_date("44178", "excel_serial") == date(2020, 12, 13)
+
+    def test_unknown_format_raises(self) -> None:
+        with pytest.raises(ValueError, match="unknown date_format"):
+            parse_accident_date("1/1/2023", "ymd")
+
+
+class TestComputeReportLagDays:
+    def test_parses_per_file_format_and_computes_lag(self) -> None:
+        df = pl.DataFrame(
+            {
+                "source_file": ["f_mdy.csv", "f_mdy.csv", "f_dmy.csv"],
+                "accident": ["4/12/2023", "1/1/2023", "25/3/2023"],
+                "report": ["4/15/2023", "1/10/2023", "28/3/2023"],
+            }
+        )
+        formats = {"f_mdy.csv": "mdy", "f_dmy.csv": "dmy"}
+        result = compute_report_lag_days(df, "source_file", "accident", "report", formats)
+        assert result.height == 3
+        lag_by_accident = dict(
+            zip(result["accident"].to_list(), result["lag_days"].to_list(), strict=True)
+        )
+        assert lag_by_accident["4/12/2023"] == 3
+        assert lag_by_accident["1/1/2023"] == 9
+        assert lag_by_accident["25/3/2023"] == 3
+
+    def test_unparseable_rows_dropped(self) -> None:
+        df = pl.DataFrame(
+            {
+                "source_file": ["f.csv", "f.csv"],
+                "accident": ["4/12/2023", "not-a-date"],
+                "report": ["4/15/2023", "4/20/2023"],
+            }
+        )
+        result = compute_report_lag_days(df, "source_file", "accident", "report", {"f.csv": "mdy"})
+        assert result.height == 1
+
+    def test_source_file_not_in_format_map_excluded(self) -> None:
+        df = pl.DataFrame(
+            {"source_file": ["unknown.csv"], "accident": ["4/12/2023"], "report": ["4/15/2023"]}
+        )
+        result = compute_report_lag_days(
+            df, "source_file", "accident", "report", {"other.csv": "mdy"}
+        )
+        assert result.height == 0
+
+    def test_no_matching_files_returns_empty_frame_with_lag_column(self) -> None:
+        df = pl.DataFrame(
+            {"source_file": ["x.csv"], "accident": ["1/1/2023"], "report": ["1/2/2023"]}
+        )
+        result = compute_report_lag_days(df, "source_file", "accident", "report", {})
+        assert result.height == 0
+        assert "lag_days" in result.columns
+
+
+class TestSummarizeReportLag:
+    def test_basic_stats(self) -> None:
+        df = pl.DataFrame({"lag_days": [1, 2, 3, 4, 5]})
+        profile = summarize_report_lag(df)
+        assert profile.rows_parsed == 5
+        assert profile.rows_negative_lag == 0
+        assert profile.median_days == 3.0
+        assert profile.max_days == 5.0
+        assert profile.count_over_90_days == 0
+
+    def test_negative_lag_excluded_from_percentiles_but_counted(self) -> None:
+        df = pl.DataFrame({"lag_days": [-5, -3, 10, 20, 30]})
+        profile = summarize_report_lag(df)
+        assert profile.rows_parsed == 5
+        assert profile.rows_negative_lag == 2
+        assert profile.max_days == 30.0
+        assert profile.median_days == 20.0
+
+    def test_count_over_90_days(self) -> None:
+        df = pl.DataFrame({"lag_days": [10, 95, 200]})
+        profile = summarize_report_lag(df)
+        assert profile.count_over_90_days == 2
+
+    def test_all_negative_returns_zeroed_stats_not_a_crash(self) -> None:
+        df = pl.DataFrame({"lag_days": [-1, -2]})
+        profile = summarize_report_lag(df)
+        assert profile.rows_parsed == 2
+        assert profile.rows_negative_lag == 2
+        assert profile.median_days == 0.0
+        assert profile.max_days == 0.0
+
+
+class TestCountRowsOverLagThreshold:
+    def test_counts_rows_above_threshold_excluding_negative(self) -> None:
+        df = pl.DataFrame({"lag_days": [-10, 5, 50, 91, 200]})
+        assert count_rows_over_lag_threshold(df, 90) == 2
+        assert count_rows_over_lag_threshold(df, 40) == 3
+
+    def test_threshold_boundary_is_exclusive(self) -> None:
+        df = pl.DataFrame({"lag_days": [90]})
+        assert count_rows_over_lag_threshold(df, 90) == 0
+
+
+class TestReportLagQuantilesByGroup:
+    def test_group_breakdown(self) -> None:
+        df = pl.DataFrame({"agency": ["A", "A", "B", "B"], "lag_days": [10, 20, 100, 200]})
+        result = report_lag_quantiles_by_group(df, "agency")
+        rows = {r["agency"]: r for r in result.to_dicts()}
+        assert rows["A"]["n"] == 2
+        assert rows["A"]["median_days"] == 15.0
+        assert rows["B"]["median_days"] == 150.0
+
+    def test_negative_lag_excluded_from_group_quantiles(self) -> None:
+        df = pl.DataFrame({"agency": ["A", "A"], "lag_days": [-5, 10]})
+        result = report_lag_quantiles_by_group(df, "agency")
+        assert result.height == 1
+        assert result["n"][0] == 1

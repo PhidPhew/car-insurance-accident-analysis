@@ -564,3 +564,71 @@ mode (guaranteed false positive on the entire target set) alongside the
 fix so the same mistake -- checking "does this pass a plausible-sounding
 review" instead of "what does this rule actually output against real
 data" -- isn't repeated in Phase 2.
+
+---
+
+## 2026-08-13 — The 90-day threshold was invented, not measured; off by a wide margin
+
+The owner flagged something I should have caught myself: the 90-day
+reporting-lag limit written into CLAUDE.md's safety net #2 was picked at
+design time, before any data existed to check it against. Asked for three
+things: (1) record the 1,193 + 448 = 1,641 completeness check from the
+previous round as an explicit proof the duplicate-group split is
+exhaustive, (2) profile the actual `report_date - accident_date`
+distribution before trusting 90 days, (3) re-run the 448-pair
+discrimination with whatever threshold the data supports.
+
+**The completeness check was real and worth recording as its own fact,
+not just implied by the two counts summing correctly.** 1,193
+(identical-raw-string groups, safety net 4a) + 448 (transposed groups,
+`date_ambiguous_pairs`) = 1,641, exactly the total ACC_CODE duplicate-group
+count from P5. Every group lands in exactly one branch. Added to CLAUDE.md
+P1 as its own callout rather than leaving it as an arithmetic coincidence
+a reader has to notice themselves.
+
+**The 90-day number was not just imprecise -- it was wrong by an order of
+magnitude relevant to the pipeline.** Profiled the full dataset (161,224
+of 161,307 rows parseable under each file's known format) with new
+functions in `src/rri/utils/profiling.py`
+(`compute_report_lag_days`, `summarize_report_lag`,
+`report_lag_quantiles_by_group`, plus `SOURCE_FILE_DATE_FORMAT` /
+`parse_accident_date` / `parse_excel_serial_date` to parse dates under
+each file's already-established format, including the Excel-serial years):
+median lag is 45 days, but **28.6% of all rows (46,179 of 161,224) exceed
+90 days**. A hard 90-day gate applied as a DQ Gate rule -- which was the
+plan, since this same threshold gates every row, not just the 448 pairs --
+would have silently rejected more than a quarter of genuinely valid data.
+This is exactly the risk the owner named before I had the numbers: "a
+threshold that's too tight will reject valid data at scale."
+
+**The distribution also varies enough by agency that a single global
+number is a real simplification, not a detail.** p99 by agency: Rural
+Roads Dept. 235 days, Highways Dept. (92.6% of rows) 393 days, Expressway
+Authority 1,219 days -- over three years. Recorded this as a documented
+limitation in CLAUDE.md rather than either ignoring it or trying to solve
+per-agency thresholds in the same pass; a per-agency threshold is a
+reasonable Phase 2 refinement, not something to improvise here.
+
+**Settled on p99 (398 days) as the data-derived global threshold**, per
+the owner's suggestion that p99 was a reasonable starting point. This
+deliberately accepts that ~1% of legitimate rows sit past the bound (that
+is what a p99 threshold means) in exchange for not rejecting the 28.6%
+that 90 days wrongly caught.
+
+**Re-ran `discriminate_transposed_date_pairs` on the real 448 pairs with
+398 days instead of 90:** resolved-unique dropped from 222 to 138, both-
+valid (undecidable) rose from 196 to 310, and **neither-valid dropped from
+30 to 0** -- confirming the owner's specific prediction that those 30 cases
+were "rows with legitimately long reporting lags rather than corrupted
+ones," not a second, independent bug. The Phase 2 `date_certainty` design
+note (still not implemented, per standing instruction not to silently pick
+a date) now covers 310 groups / 620 rows instead of 226 / 452.
+
+**Why this matters for the assignment:** a threshold with no empirical
+basis is exactly the kind of thing that looks fine in review (90 days
+"sounds reasonable" for reporting a road accident) and is wrong at scale
+in a way nobody notices until a downstream gate silently drops a quarter
+of the data. The fix wasn't picking a better number from intuition either
+-- it was building the reusable profiling capability to measure the real
+distribution first, the same discipline already applied to every other P1
+claim in CLAUDE.md.

@@ -7855,10 +7855,12 @@ notebook นี้ทำหน้าที่แค่ import → เรีย�
 <span class="kn">from</span><span class="w"> </span><span class="nn">config.settings</span><span class="w"> </span><span class="kn">import</span> <span class="n">settings</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">rri.utils.logging</span><span class="w"> </span><span class="kn">import</span> <span class="n">configure_logging</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">rri.utils.profiling</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">SOURCE_FILE_DATE_FORMAT</span><span class="p">,</span>
     <span class="n">check_duplicate_date_string_consistency</span><span class="p">,</span>
     <span class="n">check_value_when_both_populated</span><span class="p">,</span>
     <span class="n">check_within_group_agreement</span><span class="p">,</span>
     <span class="n">compute_dedup_impact</span><span class="p">,</span>
+    <span class="n">compute_report_lag_days</span><span class="p">,</span>
     <span class="n">count_resolved_by_normalization</span><span class="p">,</span>
     <span class="n">discriminate_transposed_date_pairs</span><span class="p">,</span>
     <span class="n">find_conflicting_groups</span><span class="p">,</span>
@@ -7872,7 +7874,9 @@ notebook นี้ทำหน้าที่แค่ import → เรีย�
     <span class="n">profile_json_structure</span><span class="p">,</span>
     <span class="n">profile_slash_date_side_evidence</span><span class="p">,</span>
     <span class="n">profile_time_column_formats</span><span class="p">,</span>
+    <span class="n">report_lag_quantiles_by_group</span><span class="p">,</span>
     <span class="n">sample_deterministic</span><span class="p">,</span>
+    <span class="n">summarize_report_lag</span><span class="p">,</span>
 <span class="p">)</span>
 
 <span class="n">configure_logging</span><span class="p">()</span>
@@ -8473,18 +8477,153 @@ parser ที่ deterministic ต้องได้วันที่เดี�
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=0e910f38">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=98eef33b">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
 <p><strong>Safety net 4a ผ่านสะอาด</strong>: 1,193 กลุ่ม (duplicate ที่ raw string เหมือนกันเป๊ะ) ทุกกลุ่ม parse
-ได้วันที่เดียวกัน ไม่มี mismatch เลย — ยืนยันว่า parser (สมมติฐาน MDY ต่อไฟล์) ทำงานถูกต้อง สอดคล้องกับ
-1,193 + 448 = 1,641 ครบทุกกลุ่ม duplicate ของ <code>ACC_CODE</code></p>
-<h3 id="%E0%B9%81%E0%B8%81%E0%B9%89-448-%E0%B8%84%E0%B8%B9%E0%B9%88-%E2%80%94-%E0%B9%83%E0%B8%8A%E0%B9%89-safety-net-%232-(accident_date-%E2%89%A4-report_date,-gap-%E2%89%A4-90-%E0%B8%A7%E0%B8%B1%E0%B8%99)-%E0%B9%80%E0%B8%9B%E0%B9%87%E0%B8%99%E0%B8%95%E0%B8%B1%E0%B8%A7%E0%B8%8A%E0%B8%B5%E0%B9%89%E0%B8%82%E0%B8%B2%E0%B8%94">แก้ 448 คู่ — ใช้ safety net #2 (accident_date ≤ report_date, gap ≤ 90 วัน) เป็นตัวชี้ขาด<a class="anchor-link" href="#%E0%B9%81%E0%B8%81%E0%B9%89-448-%E0%B8%84%E0%B8%B9%E0%B9%88-%E2%80%94-%E0%B9%83%E0%B8%8A%E0%B9%89-safety-net-%232-(accident_date-%E2%89%A4-report_date,-gap-%E2%89%A4-90-%E0%B8%A7%E0%B8%B1%E0%B8%99)-%E0%B9%80%E0%B8%9B%E0%B9%87%E0%B8%99%E0%B8%95%E0%B8%B1%E0%B8%A7%E0%B8%8A%E0%B8%B5%E0%B9%89%E0%B8%82%E0%B8%B2%E0%B8%94">¶</a></h3><p>สำหรับแต่ละคู่ ตัวเลือกวันที่ทั้งสอง (จาก raw string สองแบบที่สลับกัน) ถูกตรวจกับกฎนี้โดยใช้ <code>วันที่รายงาน</code>
-ของแถวตัวเอง — ตัวเลือกจะ valid ก็ต่อเมื่อ<strong>ทุกแถว</strong>ที่มี raw string นั้นผ่านเงื่อนไข (ครอบคลุมกรณี 23 กลุ่ม
-ที่มี 3 แถว ไม่ใช่แค่กรณี 2 แถวง่าย ๆ)</p>
+ได้วันที่เดียวกัน ไม่มี mismatch เลย — ยืนยันว่า parser (สมมติฐาน MDY ต่อไฟล์) ทำงานถูกต้อง</p>
+<p><strong>ตรวจความครบถ้วน (completeness check):</strong> 1,193 (กลุ่ม raw string เหมือนกัน, 4a) + 448 (กลุ่มสลับตำแหน่ง,
+<code>date_ambiguous_pairs</code>) = <strong>1,641 — ตรงกับจำนวนกลุ่ม duplicate ของ <code>ACC_CODE</code> ทั้งหมดจาก P5 พอดี</strong> ทุกกลุ่ม
+ถูกจัดเข้า branch ใด branch หนึ่งเพียง branch เดียว ไม่มีทับซ้อน ไม่มีตกหล่น — พิสูจน์ว่าการแบ่งนี้ครอบคลุม
+ข้อมูลจริงทั้งหมด ไม่ใช่แค่ตัวอย่าง</p>
+<h3 id="%E0%B8%81%E0%B9%88%E0%B8%AD%E0%B8%99%E0%B9%83%E0%B8%8A%E0%B9%89-safety-net-%232-%E0%B8%95%E0%B8%B1%E0%B8%94%E0%B8%AA%E0%B8%B4%E0%B8%99-448-%E0%B8%84%E0%B8%B9%E0%B9%88-%E2%80%94-%E0%B8%95%E0%B8%B1%E0%B8%A7%E0%B9%80%E0%B8%A5%E0%B8%82-90-%E0%B8%A7%E0%B8%B1%E0%B8%99%E0%B8%A1%E0%B8%B2%E0%B8%88%E0%B8%B2%E0%B8%81%E0%B9%84%E0%B8%AB%E0%B8%99?">ก่อนใช้ safety net #2 ตัดสิน 448 คู่ — ตัวเลข 90 วันมาจากไหน?<a class="anchor-link" href="#%E0%B8%81%E0%B9%88%E0%B8%AD%E0%B8%99%E0%B9%83%E0%B8%8A%E0%B9%89-safety-net-%232-%E0%B8%95%E0%B8%B1%E0%B8%94%E0%B8%AA%E0%B8%B4%E0%B8%99-448-%E0%B8%84%E0%B8%B9%E0%B9%88-%E2%80%94-%E0%B8%95%E0%B8%B1%E0%B8%A7%E0%B9%80%E0%B8%A5%E0%B8%82-90-%E0%B8%A7%E0%B8%B1%E0%B8%99%E0%B8%A1%E0%B8%B2%E0%B8%88%E0%B8%B2%E0%B8%81%E0%B9%84%E0%B8%AB%E0%B8%99?">¶</a></h3><p>เลข 90 วันที่เขียนไว้ใน CLAUDE.md ตอนออกแบบ <strong>เป็นตัวเลขที่เดาไว้ก่อนเห็นข้อมูลจริงเลย ไม่มีหลักฐานรองรับ</strong>
+ก่อนให้มันกลายเป็นกฎ DQ Gate ที่คัดกรองทุกแถวใน dataset ต้องตรวจสอบกับการกระจายตัวจริงของ
+<code>report_date − accident_date</code> ก่อน</p>
+</div>
+</div>
+</div>
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=f7ea5820">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [10]:</div>
+<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="cm-editor cm-s-jupyter">
+<div class="highlight hl-ipython3"><pre><span></span><span class="n">lagged</span> <span class="o">=</span> <span class="n">compute_report_lag_days</span><span class="p">(</span>
+    <span class="n">accidents_raw</span><span class="p">,</span> <span class="s2">"source_file"</span><span class="p">,</span> <span class="s2">"วันที่เกิดเหตุ"</span><span class="p">,</span> <span class="s2">"วันที่รายงาน"</span><span class="p">,</span> <span class="n">SOURCE_FILE_DATE_FORMAT</span>
+<span class="p">)</span>
+<span class="n">lag_profile</span> <span class="o">=</span> <span class="n">summarize_report_lag</span><span class="p">(</span><span class="n">lagged</span><span class="p">)</span>
+
+<span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+    <span class="p">[</span>
+        <span class="p">{</span>
+            <span class="s2">"rows_parsed"</span><span class="p">:</span> <span class="n">lag_profile</span><span class="o">.</span><span class="n">rows_parsed</span><span class="p">,</span>
+            <span class="s2">"rows_negative_lag"</span><span class="p">:</span> <span class="n">lag_profile</span><span class="o">.</span><span class="n">rows_negative_lag</span><span class="p">,</span>
+            <span class="s2">"median_days"</span><span class="p">:</span> <span class="n">lag_profile</span><span class="o">.</span><span class="n">median_days</span><span class="p">,</span>
+            <span class="s2">"p95_days"</span><span class="p">:</span> <span class="n">lag_profile</span><span class="o">.</span><span class="n">p95_days</span><span class="p">,</span>
+            <span class="s2">"p99_days"</span><span class="p">:</span> <span class="n">lag_profile</span><span class="o">.</span><span class="n">p99_days</span><span class="p">,</span>
+            <span class="s2">"max_days"</span><span class="p">:</span> <span class="n">lag_profile</span><span class="o">.</span><span class="n">max_days</span><span class="p">,</span>
+            <span class="s2">"count_over_90_days"</span><span class="p">:</span> <span class="n">lag_profile</span><span class="o">.</span><span class="n">count_over_90_days</span><span class="p">,</span>
+            <span class="s2">"pct_over_90_days"</span><span class="p">:</span> <span class="nb">round</span><span class="p">(</span>
+                <span class="n">lag_profile</span><span class="o">.</span><span class="n">count_over_90_days</span> <span class="o">/</span> <span class="n">lag_profile</span><span class="o">.</span><span class="n">rows_parsed</span> <span class="o">*</span> <span class="mi">100</span><span class="p">,</span> <span class="mi">1</span>
+            <span class="p">),</span>
+        <span class="p">}</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell-outputWrapper">
+<div class="jp-Collapser jp-OutputCollapser jp-Cell-outputCollapser">
+</div>
+<div class="jp-OutputArea jp-Cell-outputArea">
+<div class="jp-OutputArea-child jp-OutputArea-executeResult">
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[10]:</div>
+<div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
+<div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (1, 8)</small><table border="1" class="dataframe"><thead><tr><th>rows_parsed</th><th>rows_negative_lag</th><th>median_days</th><th>p95_days</th><th>p99_days</th><th>max_days</th><th>count_over_90_days</th><th>pct_over_90_days</th></tr><tr><td>i64</td><td>i64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>i64</td><td>f64</td></tr></thead><tbody><tr><td>161224</td><td>2696</td><td>45.0</td><td>284.0</td><td>398.0</td><td>1254.0</td><td>46179</td><td>28.6</td></tr></tbody></table></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=4e5a6e9f">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p><strong>28.6% ของทุกแถวที่ parse ได้ (46,179 / 161,224) มี gap เกิน 90 วัน</strong> — นี่ไม่ใช่ tail ของ
+outlier แต่เป็นสัดส่วนขนาดใหญ่ ถ้าใช้ 90 วันเป็น hard gate จริงจะทิ้งข้อมูลที่ถูกต้องไปจำนวนมาก
+(ตรงกับความกังวลที่ยกขึ้นมา: "threshold ที่แน่นเกินไปจะทิ้งข้อมูลที่ถูกต้องไปด้วย")</p>
+<p>ตรวจต่อว่าการกระจายตัวต่างกันตามปีหรือหน่วยงานหรือไม่:</p>
+</div>
+</div>
+</div>
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=13280c6d">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [11]:</div>
+<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="cm-editor cm-s-jupyter">
+<div class="highlight hl-ipython3"><pre><span></span><span class="n">pl</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span>
+    <span class="p">[</span>
+        <span class="n">report_lag_quantiles_by_group</span><span class="p">(</span><span class="n">lagged</span><span class="p">,</span> <span class="s2">"source_file"</span><span class="p">)</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span>
+            <span class="n">pl</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="s2">"by source_file"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"breakdown"</span><span class="p">)</span>
+        <span class="p">),</span>
+        <span class="n">report_lag_quantiles_by_group</span><span class="p">(</span><span class="n">lagged</span><span class="p">,</span> <span class="s2">"หน่วยงาน"</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">rename</span><span class="p">({</span><span class="s2">"หน่วยงาน"</span><span class="p">:</span> <span class="s2">"source_file"</span><span class="p">})</span>
+        <span class="o">.</span><span class="n">with_columns</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="s2">"by agency"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"breakdown"</span><span class="p">)),</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell-outputWrapper">
+<div class="jp-Collapser jp-OutputCollapser jp-Cell-outputCollapser">
+</div>
+<div class="jp-OutputArea jp-Cell-outputArea">
+<div class="jp-OutputArea-child jp-OutputArea-executeResult">
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[11]:</div>
+<div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
+<div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (11, 7)</small><table border="1" class="dataframe"><thead><tr><th>source_file</th><th>n</th><th>median_days</th><th>p95_days</th><th>p99_days</th><th>max_days</th><th>breakdown</th></tr><tr><td>str</td><td>u32</td><td>f64</td><td>f64</td><td>f64</td><td>i64</td><td>str</td></tr></thead><tbody><tr><td>"accident2019.csv"</td><td>19194</td><td>48.0</td><td>301.0</td><td>395.0</td><td>651</td><td>"by source_file"</td></tr><tr><td>"accident2020.csv"</td><td>21238</td><td>58.0</td><td>368.0</td><td>450.0</td><td>1254</td><td>"by source_file"</td></tr><tr><td>"accident2021.csv"</td><td>20062</td><td>59.0</td><td>276.0</td><td>391.0</td><td>835</td><td>"by source_file"</td></tr><tr><td>"accident2022.csv"</td><td>18093</td><td>76.0</td><td>334.0</td><td>402.0</td><td>532</td><td>"by source_file"</td></tr><tr><td>"accident2023.csv"</td><td>23610</td><td>53.0</td><td>314.0</td><td>409.0</td><td>677</td><td>"by source_file"</td></tr><tr><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td></tr><tr><td>"accident2025.csv"</td><td>23715</td><td>26.0</td><td>160.0</td><td>240.0</td><td>357</td><td>"by source_file"</td></tr><tr><td>"accident2026.csv"</td><td>8664</td><td>14.0</td><td>57.0</td><td>72.0</td><td>120</td><td>"by source_file"</td></tr><tr><td>"กรมทางหลวง"</td><td>147085</td><td>50.0</td><td>286.0</td><td>393.0</td><td>669</td><td>"by agency"</td></tr><tr><td>"กรมทางหลวงชนบท"</td><td>8958</td><td>3.0</td><td>110.0</td><td>235.0</td><td>471</td><td>"by agency"</td></tr><tr><td>"การทางพิเศษแห่งประเทศไทย"</td><td>2485</td><td>32.0</td><td>986.0</td><td>1219.0</td><td>1254</td><td>"by agency"</td></tr></tbody></table></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=f8656bfb">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p><strong>การกระจายตัวต่างกันจริงทั้งตามปีและหน่วยงาน:</strong></p>
+<ul>
+<li><strong>ตามปี</strong>: p95 อยู่ระหว่าง 57 วัน (<code>accident2026</code>, ปีที่ข้อมูลยังไม่ครบ) ถึง 368 วัน (<code>accident2020</code>)
+ปีแรก ๆ มี lag ยาวกว่าปี 2024-2026 อย่างสม่ำเสมอ</li>
+<li><strong>ตามหน่วยงาน</strong>: กรมทางหลวงชนบทแคบสุด (p95=110, p99=235) กรมทางหลวง (92.6% ของข้อมูล) อยู่กลาง ๆ
+(p95=286, p99=393) ส่วนการทางพิเศษแห่งประเทศไทยกว้างกว่ามาก (<strong>p95=986, p99=1,219</strong> — เกิน 3 ปี!)
+สอดคล้องกับข้อจำกัดเรื่อง coverage bias ที่รู้อยู่แล้ว (P7) และอาจแปลว่า <code>วันที่รายงาน</code> ของหน่วยงานนี้
+หมายถึง "ปิดเคส" มากกว่า "แจ้งเบื้องต้น" — <strong>ยังไม่สืบสวนต่อ เก็บเป็นข้อสังเกตสำหรับ Phase 2</strong></li>
+</ul>
+<p><strong>ตัดสินใจ: ใช้ p99 = 398 วัน แทน 90 วัน เป็นขอบบนของ safety net #2</strong> — ยอมรับว่าจะมี ~1%
+ของแถวที่ถูกต้องแต่เกินขอบ (ธรรมชาติของ p99) แลกกับการไม่ทิ้ง 28.6% ที่ขอบ 90 วันจะทิ้งผิด ๆ
+เป็นตัวเลขระดับ global เดียว แม้จะรู้ว่ามีความต่างตามปี/หน่วยงาน — บันทึกไว้เป็นข้อจำกัด ไม่ใช่คำตอบสุดท้าย</p>
+<h3 id="%E0%B8%A3%E0%B8%B1%E0%B8%99-safety-net-%232-%E0%B9%83%E0%B8%AB%E0%B8%A1%E0%B9%88%E0%B8%81%E0%B8%B1%E0%B8%9A-448-%E0%B8%84%E0%B8%B9%E0%B9%88-%E0%B8%94%E0%B9%89%E0%B8%A7%E0%B8%A2%E0%B8%82%E0%B8%AD%E0%B8%9A%E0%B9%80%E0%B8%82%E0%B8%95%E0%B8%97%E0%B8%B5%E0%B9%88%E0%B8%9C%E0%B9%88%E0%B8%B2%E0%B8%99%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%95%E0%B8%A3%E0%B8%A7%E0%B8%88%E0%B8%AA%E0%B8%AD%E0%B8%9A%E0%B9%81%E0%B8%A5%E0%B9%89%E0%B8%A7">รัน safety net #2 ใหม่กับ 448 คู่ ด้วยขอบเขตที่ผ่านการตรวจสอบแล้ว<a class="anchor-link" href="#%E0%B8%A3%E0%B8%B1%E0%B8%99-safety-net-%232-%E0%B9%83%E0%B8%AB%E0%B8%A1%E0%B9%88%E0%B8%81%E0%B8%B1%E0%B8%9A-448-%E0%B8%84%E0%B8%B9%E0%B9%88-%E0%B8%94%E0%B9%89%E0%B8%A7%E0%B8%A2%E0%B8%82%E0%B8%AD%E0%B8%9A%E0%B9%80%E0%B8%82%E0%B8%95%E0%B8%97%E0%B8%B5%E0%B9%88%E0%B8%9C%E0%B9%88%E0%B8%B2%E0%B8%99%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%95%E0%B8%A3%E0%B8%A7%E0%B8%88%E0%B8%AA%E0%B8%AD%E0%B8%9A%E0%B9%81%E0%B8%A5%E0%B9%89%E0%B8%A7">¶</a></h3>
 </div>
 </div>
 </div>
@@ -8493,10 +8632,12 @@ parser ที่ deterministic ต้องได้วันที่เดี�
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [10]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In [12]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="cm-editor cm-s-jupyter">
-<div class="highlight hl-ipython3"><pre><span></span><span class="n">transposed_keys</span> <span class="o">=</span> <span class="n">find_transposed_date_string_pairs</span><span class="p">(</span>
+<div class="highlight hl-ipython3"><pre><span></span><span class="n">REPORT_LAG_THRESHOLD_DAYS</span> <span class="o">=</span> <span class="mi">398</span>  <span class="c1"># p99 of observed distribution, see above (not the invented 90)</span>
+
+<span class="n">transposed_keys</span> <span class="o">=</span> <span class="n">find_transposed_date_string_pairs</span><span class="p">(</span>
     <span class="n">accidents_raw</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ACC_CODE"</span><span class="p">)</span><span class="o">.</span><span class="n">is_not_null</span><span class="p">()),</span> <span class="s2">"ACC_CODE"</span><span class="p">,</span> <span class="s2">"วันที่เกิดเหตุ"</span>
 <span class="p">)</span>
 
@@ -8507,6 +8648,7 @@ parser ที่ deterministic ต้องได้วันที่เดี�
     <span class="s2">"วันที่เกิดเหตุ"</span><span class="p">,</span>
     <span class="s2">"วันที่รายงาน"</span><span class="p">,</span>
     <span class="n">month_first</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">max_report_lag_days</span><span class="o">=</span><span class="n">REPORT_LAG_THRESHOLD_DAYS</span><span class="p">,</span>
 <span class="p">)</span>
 
 <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
@@ -8532,7 +8674,7 @@ parser ที่ deterministic ต้องได้วันที่เดี�
 </div>
 <div class="jp-OutputArea jp-Cell-outputArea">
 <div class="jp-OutputArea-child jp-OutputArea-executeResult">
-<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[10]:</div>
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[12]:</div>
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
 <div><style>
 .dataframe > thead > tr,
@@ -8541,24 +8683,26 @@ parser ที่ deterministic ต้องได้วันที่เดี�
   white-space: pre-wrap;
 }
 </style>
-<small>shape: (1, 5)</small><table border="1" class="dataframe"><thead><tr><th>transposed_pairs_found</th><th>resolved_unique</th><th>both_valid (undecidable)</th><th>neither_valid (flag)</th><th>sum</th></tr><tr><td>i64</td><td>i64</td><td>i64</td><td>i64</td><td>i64</td></tr></thead><tbody><tr><td>448</td><td>222</td><td>196</td><td>30</td><td>448</td></tr></tbody></table></div>
+<small>shape: (1, 5)</small><table border="1" class="dataframe"><thead><tr><th>transposed_pairs_found</th><th>resolved_unique</th><th>both_valid (undecidable)</th><th>neither_valid (flag)</th><th>sum</th></tr><tr><td>i64</td><td>i64</td><td>i64</td><td>i64</td><td>i64</td></tr></thead><tbody><tr><td>448</td><td>138</td><td>310</td><td>0</td><td>448</td></tr></tbody></table></div>
 </div>
 </div>
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=27c9c0d0">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=cc850bb0">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<p><strong>ผล</strong>: 448 คู่ตรงกับที่พบใน P5 เป๊ะ (425 กลุ่ม 2 แถว + 23 กลุ่ม 3 แถว)</p>
+<p><strong>ผล (หลังใช้ threshold ที่ตรวจสอบแล้ว 398 วัน)</strong>: 448 คู่ตรงกับที่พบใน P5 เป๊ะ (425 กลุ่ม 2 แถว +
+23 กลุ่ม 3 แถว) — ตัวเลขเปลี่ยนจากรอบแรกตามที่คาด เพราะ threshold กว้างขึ้นมาก:</p>
 <table>
 <thead>
 <tr>
 <th>ผลลัพธ์</th>
-<th>จำนวน</th>
+<th>@90 วัน (เดาไว้)</th>
+<th>@398 วัน (p99, จากข้อมูลจริง)</th>
 <th>ความหมาย</th>
 </tr>
 </thead>
@@ -8566,18 +8710,29 @@ parser ที่ deterministic ต้องได้วันที่เดี�
 <tr>
 <td>Resolved uniquely</td>
 <td>222</td>
-<td>มีตัวเลือกเดียวผ่านเงื่อนไข → นั่นคือวันที่จริง อีกแถวคือข้อผิดพลาดตอนคีย์</td>
+<td><strong>138</strong></td>
+<td>มีตัวเลือกเดียวผ่านเงื่อนไข → นั่นคือวันที่จริง</td>
 </tr>
 <tr>
 <td>Both valid</td>
 <td>196</td>
+<td><strong>310</strong></td>
 <td>ตัดสินไม่ได้จากหลักฐานนี้ — ต้อง flag ไม่เดา</td>
+</tr>
+<tr>
+<td>Neither valid</td>
+<td>30</td>
+<td><strong>0</strong></td>
+<td>—</td>
 </tr>
 </tbody>
 </table>
-<p>| Neither valid | 30 | มีอย่างอื่นผิดด้วย (ตรวจตัวอย่างแล้วพบว่าวันที่รายงานเองก็ห่างผิดปกติจากทั้งสองตัวเลือก
-เช่น <code>ACC_CODE 7736329</code>: ตัวเลือก 2 ม.ค. / 1 ก.พ. แต่รายงานวันที่ 27 ก.ค. — ห่างเกิน 90 วันทั้งคู่) |</p>
-<h3 id="%E0%B8%82%E0%B9%89%E0%B8%AD%E0%B9%80%E0%B8%AA%E0%B8%99%E0%B8%AD%E0%B8%AA%E0%B8%B3%E0%B8%AB%E0%B8%A3%E0%B8%B1%E0%B8%9A-Phase-2-(%E0%B8%A2%E0%B8%B1%E0%B8%87%E0%B9%84%E0%B8%A1%E0%B9%88-implement-%E2%80%94-%E0%B9%80%E0%B8%9B%E0%B9%87%E0%B8%99%E0%B9%81%E0%B8%84%E0%B9%88-design-note)">ข้อเสนอสำหรับ Phase 2 (ยังไม่ implement — เป็นแค่ design note)<a class="anchor-link" href="#%E0%B8%82%E0%B9%89%E0%B8%AD%E0%B9%80%E0%B8%AA%E0%B8%99%E0%B8%AD%E0%B8%AA%E0%B8%B3%E0%B8%AB%E0%B8%A3%E0%B8%B1%E0%B8%9A-Phase-2-(%E0%B8%A2%E0%B8%B1%E0%B8%87%E0%B9%84%E0%B8%A1%E0%B9%88-implement-%E2%80%94-%E0%B9%80%E0%B8%9B%E0%B9%87%E0%B8%99%E0%B9%81%E0%B8%84%E0%B9%88-design-note)">¶</a></h3><p>สำหรับ 196 + 30 = 226 กลุ่ม (452 แถว) ที่ safety net #2 ตัดสินไม่ได้ ให้เพิ่มคอลัมน์ <code>date_certainty</code>
+<p><strong>ทั้ง 30 กรณี "neither valid" ที่ threshold เดิม กลายเป็น valid ทั้งหมดที่ threshold ที่ตรวจสอบแล้ว</strong> —
+ยืนยันสมมติฐานที่ยกขึ้นมา: กรณีเหล่านั้นเป็นแค่ lag การรายงานที่ยาวถูกต้องตามจริง ไม่ใช่ข้อมูลเสีย
+ต้นทุนของ threshold ที่กว้างขึ้นแต่ถูกต้องคือ<strong>อำนาจแยกแยะลดลง</strong> (resolved unique เหลือ 138 จาก 222
+เพราะหน้าต่าง 398 วันทำให้ทั้งสองตัวเลือกดูสมเหตุสมผลได้บ่อยขึ้น) — ไม่ใช่บั๊ก threshold ที่กว้างและถูกต้อง
+ย่อมแยกแยะได้น้อยกว่า threshold ที่แคบแต่ผิด</p>
+<h3 id="%E0%B8%82%E0%B9%89%E0%B8%AD%E0%B9%80%E0%B8%AA%E0%B8%99%E0%B8%AD%E0%B8%AA%E0%B8%B3%E0%B8%AB%E0%B8%A3%E0%B8%B1%E0%B8%9A-Phase-2-(%E0%B8%A2%E0%B8%B1%E0%B8%87%E0%B9%84%E0%B8%A1%E0%B9%88-implement-%E2%80%94-%E0%B9%80%E0%B8%9B%E0%B9%87%E0%B8%99%E0%B9%81%E0%B8%84%E0%B9%88-design-note)">ข้อเสนอสำหรับ Phase 2 (ยังไม่ implement — เป็นแค่ design note)<a class="anchor-link" href="#%E0%B8%82%E0%B9%89%E0%B8%AD%E0%B9%80%E0%B8%AA%E0%B8%99%E0%B8%AD%E0%B8%AA%E0%B8%B3%E0%B8%AB%E0%B8%A3%E0%B8%B1%E0%B8%9A-Phase-2-(%E0%B8%A2%E0%B8%B1%E0%B8%87%E0%B9%84%E0%B8%A1%E0%B9%88-implement-%E2%80%94-%E0%B9%80%E0%B8%9B%E0%B9%87%E0%B8%99%E0%B9%81%E0%B8%84%E0%B9%88-design-note)">¶</a></h3><p>สำหรับ 310 กลุ่ม (620 แถว) ที่ safety net #2 ตัดสินไม่ได้ ให้เพิ่มคอลัมน์ <code>date_certainty</code>
 (<code>certain</code> / <code>ambiguous</code>) ใน <code>fact_accident</code> แทนการเลือกวันที่แบบเดาสุ่ม — 448 จาก 23,841 แถวใน
 <code>accident2023.csv</code> คิดเป็น ~1.9% ถือว่าน้อย แต่วันที่ที่ผิดไปเป็นเดือนคือความเสียหายที่กระทบ BQ3
 (ความเสี่ยงช่วงวันหยุด) โดยตรง จึงต้อง flag ไว้ ไม่ใช่เดาแล้วปล่อยผ่าน</p>
@@ -8603,7 +8758,7 @@ parser ที่ deterministic ต้องได้วันที่เดี�
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [11]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In [13]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="cm-editor cm-s-jupyter">
 <div class="highlight hl-ipython3"><pre><span></span><span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">([{</span><span class="s2">"column_a"</span><span class="p">:</span> <span class="n">a</span><span class="p">,</span> <span class="s2">"column_b"</span><span class="p">:</span> <span class="n">b</span><span class="p">}</span> <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">accidents_profile</span><span class="o">.</span><span class="n">null_correlated_pairs</span><span class="p">])</span>
@@ -8617,7 +8772,7 @@ parser ที่ deterministic ต้องได้วันที่เดี�
 </div>
 <div class="jp-OutputArea jp-Cell-outputArea">
 <div class="jp-OutputArea-child jp-OutputArea-executeResult">
-<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[11]:</div>
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[13]:</div>
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
 <div><style>
 .dataframe > thead > tr,
@@ -8665,7 +8820,7 @@ parser ที่ deterministic ต้องได้วันที่เดี�
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [12]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In [14]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="cm-editor cm-s-jupyter">
 <div class="highlight hl-ipython3"><pre><span></span><span class="n">primary_col</span> <span class="o">=</span> <span class="s2">"บริเวณที่เกิดเหตุ"</span>
@@ -8690,7 +8845,7 @@ parser ที่ deterministic ต้องได้วันที่เดี�
 </div>
 <div class="jp-OutputArea jp-Cell-outputArea">
 <div class="jp-OutputArea-child jp-OutputArea-executeResult">
-<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[12]:</div>
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[14]:</div>
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
 <div><style>
 .dataframe > thead > tr,
@@ -8721,7 +8876,7 @@ parser ที่ deterministic ต้องได้วันที่เดี�
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [13]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In [15]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="cm-editor cm-s-jupyter">
 <div class="highlight hl-ipython3"><pre><span></span><span class="n">hypothesis_check</span> <span class="o">=</span> <span class="n">check_value_when_both_populated</span><span class="p">(</span><span class="n">accidents_raw</span><span class="p">,</span> <span class="n">primary_col</span><span class="p">,</span> <span class="n">secondary_col</span><span class="p">,</span> <span class="s2">"อื่นๆ"</span><span class="p">)</span>
@@ -8745,7 +8900,7 @@ parser ที่ deterministic ต้องได้วันที่เดี�
 </div>
 <div class="jp-OutputArea jp-Cell-outputArea">
 <div class="jp-OutputArea-child jp-OutputArea-executeResult">
-<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[13]:</div>
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[15]:</div>
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
 <div><style>
 .dataframe > thead > tr,
@@ -8800,7 +8955,7 @@ parser ที่ deterministic ต้องได้วันที่เดี�
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [14]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In [16]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="cm-editor cm-s-jupyter">
 <div class="highlight hl-ipython3"><pre><span></span><span class="n">location_conflicts</span> <span class="o">=</span> <span class="n">find_conflicting_groups</span><span class="p">(</span><span class="n">accidents_raw</span><span class="p">,</span> <span class="p">[</span><span class="s2">"ACC_CODE"</span><span class="p">],</span> <span class="s2">"บริเวณที่เกิดเหตุ"</span><span class="p">)</span>
@@ -8819,7 +8974,7 @@ parser ที่ deterministic ต้องได้วันที่เดี�
 </div>
 <div class="jp-OutputArea jp-Cell-outputArea">
 <div class="jp-OutputArea-child jp-OutputArea-executeResult">
-<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[14]:</div>
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[16]:</div>
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
 <div><style>
 .dataframe > thead > tr,
@@ -8852,7 +9007,7 @@ parser ที่ deterministic ต้องได้วันที่เดี�
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [15]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In [17]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="cm-editor cm-s-jupyter">
 <div class="highlight hl-ipython3"><pre><span></span><span class="n">resolved</span><span class="p">,</span> <span class="n">still_conflicting</span> <span class="o">=</span> <span class="n">count_resolved_by_normalization</span><span class="p">(</span><span class="n">location_conflicts</span><span class="p">)</span>
@@ -8878,7 +9033,7 @@ parser ที่ deterministic ต้องได้วันที่เดี�
 </div>
 <div class="jp-OutputArea jp-Cell-outputArea">
 <div class="jp-OutputArea-child jp-OutputArea-executeResult">
-<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[15]:</div>
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[17]:</div>
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
 <div><style>
 .dataframe > thead > tr,
@@ -8930,7 +9085,7 @@ parser ที่ deterministic ต้องได้วันที่เดี�
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [16]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In [18]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="cm-editor cm-s-jupyter">
 <div class="highlight hl-ipython3"><pre><span></span><span class="n">DATE_CATEGORIES</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"slash_unambiguous"</span><span class="p">,</span> <span class="s2">"slash_ambiguous"</span><span class="p">,</span> <span class="s2">"excel_serial"</span><span class="p">,</span> <span class="s2">"empty"</span><span class="p">,</span> <span class="s2">"other"</span><span class="p">]</span>
@@ -8954,7 +9109,7 @@ parser ที่ deterministic ต้องได้วันที่เดี�
 </div>
 <div class="jp-OutputArea jp-Cell-outputArea">
 <div class="jp-OutputArea-child jp-OutputArea-executeResult">
-<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[16]:</div>
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[18]:</div>
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
 <div><style>
 .dataframe > thead > tr,
@@ -8991,7 +9146,7 @@ parser ที่ deterministic ต้องได้วันที่เดี�
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [17]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In [19]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="cm-editor cm-s-jupyter">
 <div class="highlight hl-ipython3"><pre><span></span><span class="n">TIME_CATEGORIES</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"clock_string"</span><span class="p">,</span> <span class="s2">"excel_fraction"</span><span class="p">,</span> <span class="s2">"empty"</span><span class="p">,</span> <span class="s2">"other"</span><span class="p">]</span>
@@ -9015,7 +9170,7 @@ parser ที่ deterministic ต้องได้วันที่เดี�
 </div>
 <div class="jp-OutputArea jp-Cell-outputArea">
 <div class="jp-OutputArea-child jp-OutputArea-executeResult">
-<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[17]:</div>
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[19]:</div>
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
 <div><style>
 .dataframe > thead > tr,
@@ -9075,7 +9230,7 @@ parser ที่ deterministic ต้องได้วันที่เดี�
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [18]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In [20]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="cm-editor cm-s-jupyter">
 <div class="highlight hl-ipython3"><pre><span></span><span class="n">OTHER_CSV_SOURCES</span> <span class="o">=</span> <span class="p">[</span>
@@ -9113,7 +9268,7 @@ parser ที่ deterministic ต้องได้วันที่เดี�
 </div>
 <div class="jp-OutputArea jp-Cell-outputArea">
 <div class="jp-OutputArea-child jp-OutputArea-executeResult">
-<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[18]:</div>
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[20]:</div>
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
 <div><style>
 .dataframe > thead > tr,
@@ -9146,7 +9301,7 @@ key ไหนเป็น object ซ้อน (nested), และความล
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [19]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In [21]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="cm-editor cm-s-jupyter">
 <div class="highlight hl-ipython3"><pre><span></span><span class="n">JSON_FILENAMES</span> <span class="o">=</span> <span class="p">[</span>
@@ -9181,7 +9336,7 @@ key ไหนเป็น object ซ้อน (nested), และความล
 </div>
 <div class="jp-OutputArea jp-Cell-outputArea">
 <div class="jp-OutputArea-child jp-OutputArea-executeResult">
-<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[19]:</div>
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[21]:</div>
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
 <div><style>
 .dataframe > thead > tr,
@@ -9220,9 +9375,16 @@ key ไหนเป็น object ซ้อน (nested), และความล
 ไม่ใช่แค่คะแนนเสียงข้างมาก) สมมติฐาน per-file <strong>ใช้ได้ ไม่ต้อง redesign</strong>
 <strong>safety net #4 เดิมเขียนผิด</strong> (จะ flag คู่ทั้ง 448 ว่า parser พังทุกครั้งโดยไม่มีทางเลี่ยง เพราะคู่ที่สลับ
 ตำแหน่งกันต้อง parse ต่างกันเสมอเมื่อไฟล์เป็น MDY ล้วน) — แก้เป็น <strong>4a</strong> (duplicate ที่ raw string เหมือน
-กันเป๊ะต้อง parse ตรงกัน — ตรวจแล้ว 1,193 กลุ่ม 0 mismatch) บวกรายงาน <code>date_ambiguous_pairs</code> แยกต่างหาก
-สำหรับ 448 คู่ที่สลับตำแหน่ง แก้ด้วย safety net #2 เป็นตัวชี้ขาด: <strong>resolved 222 / both valid (ตัดสินไม่
-ได้) 196 / neither valid (flag) 30</strong> — เสนอ <code>date_certainty</code> field สำหรับ Phase 2 (ยังไม่ implement)</li>
+กันเป๊ะต้อง parse ตรงกัน — ตรวจแล้ว 1,193 กลุ่ม 0 mismatch, บวก <strong>completeness check 1,193 + 448 = 1,641
+ตรงกับจำนวนกลุ่ม duplicate ทั้งหมดพอดี</strong>) บวกรายงาน <code>date_ambiguous_pairs</code> แยกต่างหากสำหรับ 448 คู่ที่
+สลับตำแหน่ง แก้ด้วย safety net #2 เป็นตัวชี้ขาด</li>
+<li><strong>threshold 90 วันของ safety net #2 เป็นตัวเลขที่เดาไว้ก่อนเห็นข้อมูล ไม่มีหลักฐานรองรับ:</strong> โปรไฟล์
+<code>report_date − accident_date</code> จริงทั้ง dataset พบว่า <strong>28.6% ของทุกแถว (46,179/161,224) เกิน 90 วัน</strong> —
+ถ้าใช้เป็น hard gate จะทิ้งข้อมูลถูกต้องจำนวนมาก การกระจายตัวต่างกันจริงตามปีและหน่วยงาน (การทางพิเศษฯ
+p99 สูงถึง 1,219 วัน) เปลี่ยนไปใช้ <strong>p99 = 398 วัน</strong> (จากข้อมูลจริง) แทน — รัน 448 คู่ใหม่ด้วย threshold นี้
+ได้ <strong>resolved 138 / both valid 310 / neither valid 0</strong> (จากเดิม 222/196/30) — ทั้ง 30 กรณี "neither valid"
+เดิมกลายเป็น valid ทั้งหมด ยืนยันว่าเป็น lag ที่ยาวถูกต้องตามจริง ไม่ใช่ข้อมูลเสีย — <code>date_certainty</code> design
+note อัปเดตเป็น 310 กลุ่ม (620 แถว) สำหรับ Phase 2 (ยังไม่ implement)</li>
 <li><strong>P5 conflict rate 74% ส่วนใหญ่ไม่ใช่ conflict จริง:</strong> ตรวจ 20 คู่ตรง ๆ แล้ว <strong>85.1%</strong> ของคู่ที่ขัดแย้งกัน
 เป็นแค่คำพ้องความหมาย/รูปแบบเขียนต่างกัน (<code>"ไม่มีความลาดชัน"</code> ↔ <code>"ที่ราบ"</code> ฯลฯ) <strong>ต้อง harmonize
 taxonomy ก่อน แล้วค่อย dedup</strong> ไม่ใช่คิด tie-break rule ก่อน</li>

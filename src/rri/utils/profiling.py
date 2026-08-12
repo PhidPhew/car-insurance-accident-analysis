@@ -14,7 +14,7 @@ import random
 import re
 from collections import Counter
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -855,3 +855,178 @@ def discriminate_transposed_date_pairs(
             )
         )
     return TransposedDatePairDiscrimination(resolutions=resolutions)
+
+
+# --------------------------------------------------------------------------
+# Report-lag distribution (report_date - accident_date): validates the
+# 90-day threshold used by safety net #2 and `discriminate_transposed_date_pairs`
+# against real data, rather than trusting the value it was designed with.
+# --------------------------------------------------------------------------
+
+#: Per-file date format, as established in P1 (CLAUDE.md) by counting
+#: unambiguous (a component > 12) rows -- "dmy", "mdy", or "excel_serial".
+#: This is the single settled source of truth for per-file format, reused
+#: here for lag profiling and by the Task 5 data contracts to assert the
+#: same fact.
+SOURCE_FILE_DATE_FORMAT: dict[str, str] = {
+    "accident2019.csv": "dmy",
+    "accident2020.csv": "mdy",
+    "accident2021.csv": "mdy",
+    "accident2022.csv": "mdy",
+    "accident2023.csv": "mdy",
+    "accident2024.csv": "excel_serial",
+    "accident2025.csv": "excel_serial",
+    "accident2026.csv": "dmy",
+}
+
+EXCEL_SERIAL_ORIGIN = date(1899, 12, 30)
+
+
+def parse_excel_serial_date(value: str) -> date | None:
+    """Parse an Excel serial-date string (days since 1899-12-30) into a `date`."""
+    try:
+        serial = float(value.strip())
+    except ValueError:
+        return None
+    if serial <= 0:
+        return None
+    return EXCEL_SERIAL_ORIGIN + timedelta(days=int(serial))
+
+
+def parse_accident_date(value: str, date_format: str) -> date | None:
+    """Parse a raw date string using a fixed per-file format label.
+
+    `date_format` must be "dmy", "mdy", or "excel_serial" (see
+    `SOURCE_FILE_DATE_FORMAT`). Returns None for anything that doesn't parse
+    under that specific format rather than falling back to another one --
+    per-file format is fixed by design (P1), so a value that doesn't fit is
+    a row-level anomaly to flag elsewhere, not something to guess around
+    here.
+    """
+    if date_format == "excel_serial":
+        return parse_excel_serial_date(value)
+    if date_format == "dmy":
+        return parse_slash_date(value, month_first=False)
+    if date_format == "mdy":
+        return parse_slash_date(value, month_first=True)
+    raise ValueError(f"unknown date_format: {date_format!r}")
+
+
+def compute_report_lag_days(
+    df: pl.DataFrame,
+    source_file_column: str,
+    accident_date_column: str,
+    report_date_column: str,
+    file_date_formats: dict[str, str],
+) -> pl.DataFrame:
+    """Parse both date columns per `source_file`'s known format and add a `lag_days` column.
+
+    Returns one row per input row where BOTH dates parsed successfully under
+    that file's format (`df.height` before minus after gives the
+    unparseable count). `lag_days` is `report_date - accident_date` in days
+    and can be negative (report predating the accident -- a different
+    anomaly than "long lag", see `summarize_report_lag`).
+    """
+    frames = []
+    for source_file, date_format in file_date_formats.items():
+        sub = df.filter(pl.col(source_file_column) == source_file)
+        if sub.height == 0:
+            continue
+        lag_days: list[int | None] = []
+        for accident_raw, report_raw in zip(
+            sub[accident_date_column].to_list(), sub[report_date_column].to_list(), strict=True
+        ):
+            accident_dt = (
+                parse_accident_date(accident_raw, date_format) if accident_raw is not None else None
+            )
+            report_dt = (
+                parse_accident_date(report_raw, date_format) if report_raw is not None else None
+            )
+            if accident_dt is None or report_dt is None:
+                lag_days.append(None)
+            else:
+                lag_days.append((report_dt - accident_dt).days)
+        frames.append(sub.with_columns(pl.Series("lag_days", lag_days, dtype=pl.Int64)))
+    if not frames:
+        return df.head(0).with_columns(pl.lit(None, dtype=pl.Int64).alias("lag_days"))
+    return pl.concat(frames).filter(pl.col("lag_days").is_not_null())
+
+
+@dataclass(frozen=True)
+class ReportLagProfile:
+    """Distribution of `report_date - accident_date` (days) across parseable rows.
+
+    Percentiles/median/max are computed on non-negative lags only -- a
+    negative lag (report predates the accident) is a different failure mode
+    (a date is simply wrong), not evidence about how long legitimate
+    reporting takes, and would distort the "how high should the upper bound
+    be" question this profile exists to answer.
+    """
+
+    rows_parsed: int
+    rows_negative_lag: int
+    median_days: float
+    p95_days: float
+    p99_days: float
+    max_days: float
+    count_over_90_days: int
+
+
+def count_rows_over_lag_threshold(
+    df_with_lag: pl.DataFrame, threshold_days: int, lag_column: str = "lag_days"
+) -> int:
+    """How many non-negative-lag rows exceed `threshold_days`? Used to test candidate thresholds."""
+    return int(
+        df_with_lag.filter((pl.col(lag_column) >= 0) & (pl.col(lag_column) > threshold_days)).height
+    )
+
+
+def summarize_report_lag(
+    df_with_lag: pl.DataFrame, lag_column: str = "lag_days"
+) -> ReportLagProfile:
+    """Summarize a `lag_days` column produced by `compute_report_lag_days`."""
+    negative = df_with_lag.filter(pl.col(lag_column) < 0)
+    non_negative = df_with_lag.filter(pl.col(lag_column) >= 0)
+    lags = non_negative[lag_column]
+    if non_negative.height == 0:
+        return ReportLagProfile(
+            rows_parsed=df_with_lag.height,
+            rows_negative_lag=negative.height,
+            median_days=0.0,
+            p95_days=0.0,
+            p99_days=0.0,
+            max_days=0.0,
+            count_over_90_days=0,
+        )
+    return ReportLagProfile(
+        rows_parsed=df_with_lag.height,
+        rows_negative_lag=negative.height,
+        median_days=float(lags.median()),  # type: ignore[arg-type]
+        p95_days=float(lags.quantile(0.95, interpolation="linear")),  # type: ignore[arg-type]
+        p99_days=float(lags.quantile(0.99, interpolation="linear")),  # type: ignore[arg-type]
+        max_days=float(lags.max()),  # type: ignore[arg-type]
+        count_over_90_days=int(non_negative.filter(pl.col(lag_column) > 90).height),
+    )
+
+
+def report_lag_quantiles_by_group(
+    df_with_lag: pl.DataFrame, group_col: str, lag_column: str = "lag_days"
+) -> pl.DataFrame:
+    """Median/p95/p99/max lag per `group_col` value (non-negative lags only), plus row count.
+
+    Used to check whether the lag distribution differs meaningfully by
+    agency or by year -- a single global threshold is only appropriate if
+    it doesn't.
+    """
+    non_negative = df_with_lag.filter(pl.col(lag_column) >= 0)
+    return (
+        non_negative.group_by(group_col)
+        .agg(
+            pl.len().alias("n"),
+            pl.col(lag_column).median().alias("median_days"),
+            pl.col(lag_column).quantile(0.95).alias("p95_days"),
+            pl.col(lag_column).quantile(0.99).alias("p99_days"),
+            pl.col(lag_column).max().alias("max_days"),
+        )
+        .sort(group_col)
+    )
