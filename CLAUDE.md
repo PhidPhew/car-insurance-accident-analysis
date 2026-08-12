@@ -168,27 +168,67 @@ a blanket per-file format assumption would silently mis-parse this one row.
 ⚠️ **The per-file-format assumption itself was stress-tested (owner-requested) using P5's 448
 day/month-transposed duplicate pairs (see P5) — read that analysis before touching Q1/P1 code.**
 All 448 pairs sit in the same `source_file` as each other (100%, all in `accident2023.csv`), which is
-the branch that would normally mean "the assumption is broken, redesign." The evidence against
-redesigning: `accident2023.csv`'s MDY assignment rests on 14,578 unambiguous rows (a component > 12),
-and every one of the 448 transposed pairs has *both* components ≤ 12 in *both* strings — structurally,
-this class of error can only occur inside the already-ambiguous range, so it can neither contradict
-nor contaminate the unambiguous-row majority vote. The swap pattern itself (`a/b/y` ↔ `b/a/y`, exact,
-100% of the 448) reads as a re-keying transcription error, not a file that secretly mixes formats.
-**This reasoning is presented as evidence, not a final ruling — confirm before relying on it.**
+the branch that would normally mean "the assumption is broken, redesign." **The assumption survives —
+settled, not just evidence:** if `accident2023.csv` genuinely mixed DMY and MDY rows, that mixing would
+show up spread across the whole file's unambiguous evidence, not confined to duplicate pairs — some
+rows would have a **first** component > 12 (DMY evidence). It has zero. Verified directly:
+`accident2023.csv`'s 23,841 date values split **14,578 with second-component > 12 (MDY evidence) / 0
+with first-component > 12 (DMY evidence) / 0 with both / 9,263 ambiguous (neither)**. Zero
+counter-evidence across the entire file, not just a majority — the file is uniformly MDY, full stop.
+The 448 transposed pairs don't change this: every one has *both* components ≤ 12 in *both* strings —
+structurally, digit-transposition can only occur inside the already-ambiguous range, so it can never
+produce DMY evidence and never contaminates the unambiguous-row vote. The swap pattern itself
+(`a/b/y` ↔ `b/a/y`, exact, 100% of the 448) is a re-keying transcription error, not a file that
+secretly mixes formats.
 
-**Safety net #4 (new, stronger than the other three — validates at day resolution, not just year):**
-using P5's known duplicate pairs as ground truth (two rows already established to be the same
-real-world event), after Phase 2 parsing **both rows of a known pair must resolve to the identical
-calendar date.** Any pair that doesn't is a signal the parser or the file's format assumption is
-wrong for that row — this catches exactly the row-level defect layer 1–3 below cannot (they only
-check year, ordering, and aggregate day-of-month shape, none of which a single transposed row would
-disturb).
+🔴 **Correction to an earlier draft of safety net #4:** it was first written as "both rows of a known
+P5 duplicate pair must resolve to the same calendar date after parsing." That is wrong and must not be
+implemented as written. Given the file is uniformly MDY (above), both rows of a transposed pair parse
+as MDY by construction — one is `month=a day=b`, the other `month=b day=a` — so they are **mathematically
+guaranteed to produce different dates**. A rule requiring them to match would flag all 448 pairs as
+parser failures every single time, and anyone trusting that signal would "fix" a parser that is actually
+correct. The real problem in these 448 pairs isn't the date format — it's that someone keyed the same
+event twice and swapped the day/month fields the second time. Split into two separate, non-conflicting
+concepts:
 
-**Mandatory safety net (now 4 layers):**
+- **Safety net #4a (the real parser check):** among P5's known duplicate pairs, restrict to the subset
+  where the **raw date string is identical** across the group (1,193 of the 1,641 ACC_CODE duplicate
+  groups). For those, a deterministic parser must always produce one date — any mismatch is a genuine
+  parser/format-detection bug. Verified against the real file: **1,193 groups checked, 0 mismatches.**
+  Implemented as `check_duplicate_date_string_consistency()` in `src/rri/utils/profiling.py`.
+- **`date_ambiguous_pairs` report (not a parser check):** the remaining 448 groups, where the two rows'
+  raw strings are exact digit-transpositions of each other, are a **data-entry problem**. They belong in
+  their own report, resolved separately (below) — never fed into the 4a identical-string check.
+  Detected via `find_transposed_date_string_pairs()`.
+
+**Resolving the 448 — use safety net #2 (accident_date ≤ report_date, gap ≤ 90 days) as a discriminator.**
+For each pair, both candidate dates (from the two transposed raw strings) are tested against that rule
+using each row's own report date; a candidate is valid only if every row carrying that raw string
+passes (this correctly covers the 23 groups that have 3 rows — 2 distinct dates, one repeated — not
+just the simple 2-row case). Implemented as `discriminate_transposed_date_pairs()`, run against the real
+`accident2023.csv` data:
+
+| Outcome | Count | Meaning |
+|---|---|---|
+| Resolved uniquely | 222 | exactly one candidate passes safety net #2 → that's the true date, the other row is the keying error |
+| Both valid | 196 | genuinely undecidable from this evidence — flag, don't guess |
+| Neither valid | 30 | something else is wrong (spot-checked: these are cases where the *report* is also unusually delayed relative to both candidates, e.g. `ACC_CODE 7736329`: candidates Jan 2 / Feb 1, reported Jul 27 — both gaps exceed 90 days regardless of which date is true) |
+| **Total** | **448** | matches `find_transposed_date_string_pairs()` exactly (425 two-row + 23 three-row groups) |
+
+**Phase 2 design note (not implemented yet — for whoever builds the real parser):** for the 196 +
+30 = 226 groups (452 rows) that safety net #2 cannot resolve, add a `date_certainty` field
+(`certain` / `ambiguous`) to `fact_accident` rather than silently picking a date. 448 of 23,841 rows in
+`accident2023.csv` is ~1.9% — small, but a date wrong by months is exactly the kind of error that would
+distort BQ3 (holiday-period risk analysis), so it must be flagged, not guessed.
+
+**Mandatory safety net (4 layers, #4 corrected to 4a):**
 1. Parsed year **must equal the existing `ปีที่เกิดเหตุ` column** — a single mismatch fails the pipeline
 2. `accident_date ≤ report_date`, and the gap must be ≤ 90 days
 3. Day-of-month histogram must be flat — a wrong parse shows a spike on days 1–12
-4. **Both rows of a known P5 duplicate pair must parse to the same calendar date** (day resolution)
+4a. **Duplicate-group rows sharing an identical raw date string must parse to the same calendar date**
+   (day resolution). Rows in a duplicate group whose raw strings are transposed digits are expected to
+   parse differently and are handled by the `date_ambiguous_pairs` / `date_certainty` process above, not
+   this check.
 
 ### 🔴 P2 — Two time formats
 String `21:10` mixed with Excel day fractions `0.375` (=09:00), `0.625` (=15:00).

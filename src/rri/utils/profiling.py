@@ -14,6 +14,7 @@ import random
 import re
 from collections import Counter
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -249,6 +250,41 @@ def classify_date_string(value: str) -> str:
 def profile_date_column_formats(values: list[str]) -> dict[str, int]:
     """Count how many values fall into each `classify_date_string` category."""
     counter: Counter[str] = Counter(classify_date_string(v) for v in values)
+    return dict(counter)
+
+
+def classify_slash_date_side_evidence(value: str) -> str | None:
+    """Which side of a `a/b/y` string is the unambiguous >12 evidence on, if any?
+
+    Returns "mdy_evidence" (second component > 12, so the first must be the
+    month), "dmy_evidence" (first component > 12, so the first must be the
+    day), "both_over_12" (both > 12 -- not a valid calendar date on either
+    reading), "ambiguous" (neither > 12), or None for values that are not a
+    plain two-slash date. Used to settle a per-file DMY-vs-MDY decision by
+    checking whether ANY row contributes evidence for the losing side, not
+    just counting the winning side.
+    """
+    stripped = value.strip()
+    match = _SLASH_DATE_RE.match(stripped)
+    if not match:
+        return None
+    a, b = int(match.group(1)), int(match.group(2))
+    if a > 12 and b > 12:
+        return "both_over_12"
+    if a > 12:
+        return "dmy_evidence"
+    if b > 12:
+        return "mdy_evidence"
+    return "ambiguous"
+
+
+def profile_slash_date_side_evidence(values: list[str]) -> dict[str, int]:
+    """Count how many values fall into each `classify_slash_date_side_evidence` category."""
+    counter: Counter[str] = Counter()
+    for v in values:
+        category = classify_slash_date_side_evidence(v)
+        if category is not None:
+            counter[category] += 1
     return dict(counter)
 
 
@@ -608,3 +644,214 @@ def count_resolved_by_normalization(
         else:
             still_conflicting += 1
     return resolved, still_conflicting
+
+
+# --------------------------------------------------------------------------
+# P1/P5 duplicate-date investigation: telling a genuine parser bug apart
+# from a data-entry error (transposed day/month digits) within known
+# duplicate groups (P5). Diagnostic only -- `parse_slash_date` is not the
+# Phase 2 cleaning parser, it exists to test candidate dates during
+# profiling.
+# --------------------------------------------------------------------------
+
+
+def parse_slash_date(value: str, month_first: bool) -> date | None:
+    """Parse a `d/m/y` (or `m/d/y`, per `month_first`) string into a `date`.
+
+    Returns None for anything that is not a plain two-slash date, or that
+    doesn't form a valid calendar date (e.g. day=31 in a 30-day month).
+    Diagnostic only: this does not attempt to detect the format itself
+    (see `classify_date_string` / P1's per-file detection) -- the caller
+    must already know which side is the month.
+    """
+    match = _SLASH_DATE_RE.match(value.strip())
+    if not match:
+        return None
+    first, second = int(match.group(1)), int(match.group(2))
+    year = int(match.group(3))
+    if year < 100:
+        year += 2000
+    month, day = (first, second) if month_first else (second, first)
+    try:
+        return date(year, month, day)
+    except ValueError:
+        return None
+
+
+@dataclass(frozen=True)
+class DuplicateDateStringConsistency:
+    """Safety net 4a: duplicate rows sharing an IDENTICAL raw date string must parse identically.
+
+    Deliberately scoped narrow. Rows in a duplicate group (by `group_key`)
+    can legitimately carry DIFFERENT raw date strings that are digit
+    transpositions of each other (a data-entry error -- see
+    `find_transposed_date_string_pairs`); those are expected to parse to two
+    different dates and are not a parser bug. This check only looks at
+    groups where the raw string is identical across every row: for those, a
+    deterministic parser must always produce one date, so any mismatch here
+    is a real parser or format-detection bug, not a keying error.
+    """
+
+    groups_checked: int
+    mismatched_groups: int
+    mismatched_group_keys: list[Any]
+
+
+def check_duplicate_date_string_consistency(
+    df: pl.DataFrame, group_key: str, raw_date_column: str, parsed_date_column: str
+) -> DuplicateDateStringConsistency:
+    """Among duplicate groups (by `group_key`) with one raw date string, does the parsed date agree?
+
+    Returns the count of same-raw-string groups checked and any that
+    disagree after parsing.
+    """
+    keyed = df.filter(pl.col(group_key).is_not_null())
+    groups = keyed.group_by(group_key).agg(
+        pl.col(raw_date_column).n_unique().alias("n_raw"),
+        pl.col(parsed_date_column).n_unique().alias("n_parsed"),
+        pl.len().alias("n_rows"),
+    )
+    identical_raw = groups.filter((pl.col("n_rows") > 1) & (pl.col("n_raw") == 1))
+    mismatched = identical_raw.filter(pl.col("n_parsed") > 1)
+    return DuplicateDateStringConsistency(
+        groups_checked=int(identical_raw.height),
+        mismatched_groups=int(mismatched.height),
+        mismatched_group_keys=mismatched[group_key].to_list(),
+    )
+
+
+def find_transposed_date_string_pairs(
+    df: pl.DataFrame, group_key: str, raw_date_column: str
+) -> list[Any]:
+    """Duplicate groups (by `group_key`) whose raw date strings disagree in exactly two
+    values that are digit transpositions of each other (`a/b/y` vs. `b/a/y`, same year).
+
+    This is a data-entry problem, not a date-format problem: once a file's
+    format is fixed (P1), transposed day/month digits are mathematically
+    guaranteed to parse to two different dates. That is why they must NOT be
+    fed into `check_duplicate_date_string_consistency` (which would flag all
+    of them as parser failures) -- they belong in a separate
+    `date_ambiguous_pairs` report instead, resolved by
+    `discriminate_transposed_date_pairs`.
+    """
+    keyed = df.filter(pl.col(group_key).is_not_null())
+    groups = keyed.group_by(group_key).agg(
+        pl.col(raw_date_column).n_unique().alias("n_raw"), pl.len().alias("n_rows")
+    )
+    candidate_keys = groups.filter((pl.col("n_rows") > 1) & (pl.col("n_raw") == 2))[
+        group_key
+    ].to_list()
+
+    transposed_keys = []
+    for key in candidate_keys:
+        raws = keyed.filter(pl.col(group_key) == key)[raw_date_column].unique().to_list()
+        if len(raws) != 2:
+            continue
+        match_a = _SLASH_DATE_RE.match(raws[0].strip())
+        match_b = _SLASH_DATE_RE.match(raws[1].strip())
+        if not match_a or not match_b:
+            continue
+        a1, b1, y1 = match_a.group(1), match_a.group(2), match_a.group(3)
+        a2, b2, y2 = match_b.group(1), match_b.group(2), match_b.group(3)
+        if a1 == b2 and b1 == a2 and y1 == y2:
+            transposed_keys.append(key)
+    return transposed_keys
+
+
+@dataclass(frozen=True)
+class TransposedDatePairResolution:
+    """One transposed-date duplicate group and which candidate date(s) survive safety net #2."""
+
+    group_key: Any
+    candidate_dates: list[date]
+    valid_dates: list[date]
+
+    @property
+    def outcome(self) -> str:
+        """Returns 'resolved_unique', 'both_valid' (undecidable), or 'neither_valid' (flag)."""
+        if len(self.valid_dates) == 1:
+            return "resolved_unique"
+        if len(self.valid_dates) == 2:
+            return "both_valid"
+        return "neither_valid"
+
+
+@dataclass(frozen=True)
+class TransposedDatePairDiscrimination:
+    """Resolution outcomes for a set of transposed-date duplicate pairs.
+
+    See `discriminate_transposed_date_pairs`.
+    """
+
+    resolutions: list[TransposedDatePairResolution]
+
+    @property
+    def resolved_unique(self) -> int:
+        return sum(1 for r in self.resolutions if r.outcome == "resolved_unique")
+
+    @property
+    def both_valid(self) -> int:
+        return sum(1 for r in self.resolutions if r.outcome == "both_valid")
+
+    @property
+    def neither_valid(self) -> int:
+        return sum(1 for r in self.resolutions if r.outcome == "neither_valid")
+
+
+def discriminate_transposed_date_pairs(
+    df: pl.DataFrame,
+    group_key: str,
+    group_keys_to_resolve: list[Any],
+    raw_date_column: str,
+    raw_report_date_column: str,
+    month_first: bool,
+    max_report_lag_days: int = 90,
+) -> TransposedDatePairDiscrimination:
+    """Resolve transposed-date duplicate groups using safety net #2 as a discriminator.
+
+    For each group in `group_keys_to_resolve`, each distinct raw date string
+    is one candidate date. A candidate is valid only if EVERY row carrying
+    that raw string satisfies both safety-net-#2 conditions against its own
+    report date (`accident_date <= report_date`, gap <= `max_report_lag_days`)
+    -- so a 3-row group (one candidate date repeated across two rows) requires
+    both of those rows to agree, not just one.
+
+    If exactly one candidate is valid, that is the resolved true date. If
+    both are valid, the pair is genuinely undecidable from this evidence. If
+    neither is valid, something else is wrong with the row and it must be
+    flagged rather than resolved either way.
+    """
+    resolutions = []
+    for key in group_keys_to_resolve:
+        sub = df.filter(pl.col(group_key) == key)
+        candidate_valid: dict[date, bool] = {}
+        for raw_value in sub[raw_date_column].unique().to_list():
+            rows = sub.filter(pl.col(raw_date_column) == raw_value)
+            candidate = parse_slash_date(raw_value, month_first=month_first)
+            if candidate is None:
+                continue
+            valid = True
+            for accident_raw, report_raw in zip(
+                rows[raw_date_column].to_list(),
+                rows[raw_report_date_column].to_list(),
+                strict=True,
+            ):
+                accident_dt = parse_slash_date(accident_raw, month_first=month_first)
+                report_dt = parse_slash_date(report_raw, month_first=month_first)
+                if accident_dt is None or report_dt is None:
+                    valid = False
+                    break
+                gap = (report_dt - accident_dt).days
+                if gap < 0 or gap > max_report_lag_days:
+                    valid = False
+                    break
+            candidate_valid[candidate] = valid
+        valid_dates = [d for d, ok in candidate_valid.items() if ok]
+        resolutions.append(
+            TransposedDatePairResolution(
+                group_key=key,
+                candidate_dates=list(candidate_valid.keys()),
+                valid_dates=valid_dates,
+            )
+        )
+    return TransposedDatePairDiscrimination(resolutions=resolutions)

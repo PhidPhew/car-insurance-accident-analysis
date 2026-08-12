@@ -495,3 +495,72 @@ either/or question in every one of these four items, and each answer
 serious branch of that criterion. Reporting the full reasoning and
 recommendation without asserting the conclusion myself keeps the actual
 decision where it belongs.
+
+---
+
+## 2026-08-13 — Safety net #4 was a genuine logic error, caught and fixed by the owner
+
+The owner ruled on the previous entry's open question ("is the per-file MDY
+assumption still safe given the 448 transposed pairs?") with **a sharper
+argument than the one I offered**, then found a real bug in my own proposed
+fix before it reached the codebase.
+
+**The owner's reasoning was more decisive than mine.** I had argued "same
+file in 100% of the 448 pairs, but structurally can't contradict the
+majority vote" -- true, but indirect. The owner's version: if
+`accident2023.csv` genuinely mixed DMY and MDY, the mixing would show up
+as `dmy_evidence` (first component > 12) rows *spread across the whole
+file*, not confined to duplicate pairs. Checking that directly is a
+sharper, more falsifiable test than my structural argument. Verified: 0
+`dmy_evidence` rows anywhere in the file's 23,841 dates, against 14,578
+`mdy_evidence` rows -- not a majority vote, a zero-counter-evidence result.
+Added `classify_slash_date_side_evidence` / `profile_slash_date_side_evidence`
+to `src/rri/utils/profiling.py` to make this check reusable rather than a
+one-off script.
+
+**My proposed safety net #4 was wrong, and the owner caught it before it
+shipped.** I had written it as "both rows of a known P5 duplicate pair
+must resolve to the same calendar date after parsing." Once the file is
+confirmed uniformly MDY, this is mathematically guaranteed to fail on
+every one of the 448 transposed pairs: one row parses to `month=a day=b`,
+the other to `month=b day=a`, by construction never equal. A rule built on
+this premise would flag all 448 pairs as "parser broken" on every run --
+a false-positive signal convincing enough that someone could act on it and
+break a parser that was working correctly. This was not a subtle edge
+case; the failure was guaranteed for the entire target set, which is what
+should have been caught before proposing it, not after.
+
+**The fix, exactly as the owner specified:** split into two non-competing
+checks instead of one overloaded one.
+- **Safety net 4a** (`check_duplicate_date_string_consistency`): restricted
+  to duplicate groups where the raw date *string* is identical across every
+  row (1,193 of the 1,641 `ACC_CODE` groups) -- this is the real parser
+  determinism check, and it passed clean (0 mismatches).
+- **`date_ambiguous_pairs` concept** (`find_transposed_date_string_pairs` +
+  `discriminate_transposed_date_pairs`): the remaining 448 groups, resolved
+  using safety net #2 (`accident_date <= report_date`, gap <= 90 days) as a
+  discriminator, checked per-candidate against every row carrying that
+  candidate's raw string (this generalizes correctly to the 23 three-row
+  groups, not just the 425 two-row ones -- an earlier ad-hoc script missed
+  this and silently dropped 23 groups from its totals before the reusable
+  function was written). Result: 222 resolved uniquely, 196 genuinely
+  undecidable (both candidates valid), 30 flagged (neither valid --
+  spot-checked, these have their own report-date anomaly stacked on top of
+  the transposition). Sums to exactly 448.
+
+**Per the owner's instruction, no date was picked for the 226 undecidable
+groups.** A `date_certainty` (`certain` / `ambiguous`) field on
+`fact_accident` is recorded in CLAUDE.md P1 as a Phase 2 design note, not
+implemented now -- 448/23,841 rows (~1.9%) is small, but a wrong date by
+months would distort BQ3 (holiday-period risk), so it gets flagged rather
+than guessed.
+
+**Why this matters for the assignment:** this is a concrete instance of
+"trust but verify" applied to my own output, not just to data -- the
+owner did not accept a plausible-sounding safety-net design without
+tracing what it would actually do against the real 448 pairs, and doing
+so surfaced a rule that was unusable as written. Recording the failure
+mode (guaranteed false positive on the entire target set) alongside the
+fix so the same mistake -- checking "does this pass a plausible-sounding
+review" instead of "what does this rule actually output against real
+data" -- isn't repeated in Phase 2.

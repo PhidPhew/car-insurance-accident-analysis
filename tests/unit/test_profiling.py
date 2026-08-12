@@ -1,19 +1,25 @@
+from datetime import date
 from pathlib import Path
 
 import polars as pl
 
 from rri.utils.profiling import (
+    check_duplicate_date_string_consistency,
     check_value_when_both_populated,
     check_within_group_agreement,
     classify_date_string,
+    classify_slash_date_side_evidence,
     classify_time_string,
     compute_dedup_impact,
     count_resolved_by_normalization,
     detect_delimiter,
     detect_line_ending,
+    discriminate_transposed_date_pairs,
     find_conflicting_groups,
     find_null_correlated_column_groups,
+    find_transposed_date_string_pairs,
     normalize_for_synonym_check,
+    parse_slash_date,
     population_rate_by_group,
     profile_column,
     profile_csv_file,
@@ -21,6 +27,7 @@ from rri.utils.profiling import (
     profile_duplicates,
     profile_file_metadata,
     profile_json_structure,
+    profile_slash_date_side_evidence,
     profile_time_column_formats,
     sample_deterministic,
 )
@@ -199,6 +206,44 @@ class TestProfileDateColumnFormats:
             "empty": 1,
             "other": 1,
         }
+
+
+class TestClassifySlashDateSideEvidence:
+    def test_mdy_evidence_when_second_component_over_12(self) -> None:
+        assert classify_slash_date_side_evidence("4/25/2023") == "mdy_evidence"
+
+    def test_dmy_evidence_when_first_component_over_12(self) -> None:
+        assert classify_slash_date_side_evidence("25/4/2023") == "dmy_evidence"
+
+    def test_both_over_12(self) -> None:
+        assert classify_slash_date_side_evidence("13/14/2023") == "both_over_12"
+
+    def test_ambiguous_when_neither_over_12(self) -> None:
+        assert classify_slash_date_side_evidence("4/12/2023") == "ambiguous"
+
+    def test_non_slash_string_returns_none(self) -> None:
+        assert classify_slash_date_side_evidence("45746") is None
+        assert classify_slash_date_side_evidence("") is None
+
+
+class TestProfileSlashDateSideEvidence:
+    def test_counts_each_category_and_skips_non_slash_values(self) -> None:
+        values = ["4/25/2023", "25/4/2023", "13/14/2023", "4/12/2023", "45746", ""]
+        counts = profile_slash_date_side_evidence(values)
+        assert counts == {
+            "mdy_evidence": 1,
+            "dmy_evidence": 1,
+            "both_over_12": 1,
+            "ambiguous": 1,
+        }
+
+    def test_zero_dmy_evidence_across_whole_file_is_the_decisive_signal(self) -> None:
+        # Mirrors the real accident2023.csv finding: many mdy_evidence rows,
+        # zero dmy_evidence rows anywhere in the file -- not just a majority.
+        values = ["4/25/2023"] * 100 + ["4/12/2023"] * 50
+        counts = profile_slash_date_side_evidence(values)
+        assert counts.get("dmy_evidence", 0) == 0
+        assert counts["mdy_evidence"] == 100
 
 
 class TestClassifyTimeString:
@@ -541,3 +586,224 @@ class TestCountResolvedByNormalization:
         resolved, still = count_resolved_by_normalization(conflicts)
         assert resolved == 1
         assert still == 1
+
+
+class TestParseSlashDate:
+    def test_month_first(self) -> None:
+        assert parse_slash_date("4/12/2023", month_first=True) == date(2023, 4, 12)
+
+    def test_day_first(self) -> None:
+        assert parse_slash_date("4/12/2023", month_first=False) == date(2023, 12, 4)
+
+    def test_two_digit_year_expands_to_2000s(self) -> None:
+        assert parse_slash_date("4/12/23", month_first=True) == date(2023, 4, 12)
+
+    def test_invalid_calendar_date_returns_none(self) -> None:
+        # month_first=False reads this as month=40, day=13 -- not a real month
+        assert parse_slash_date("13/40/2023", month_first=False) is None
+
+    def test_non_slash_string_returns_none(self) -> None:
+        assert parse_slash_date("45746", month_first=True) is None
+
+
+class TestCheckDuplicateDateStringConsistency:
+    def test_identical_strings_parse_identically(self) -> None:
+        df = pl.DataFrame(
+            {
+                "code": ["A1", "A1"],
+                "raw": ["4/12/2023", "4/12/2023"],
+                "parsed": [date(2023, 4, 12), date(2023, 4, 12)],
+            }
+        )
+        result = check_duplicate_date_string_consistency(df, "code", "raw", "parsed")
+        assert result.groups_checked == 1
+        assert result.mismatched_groups == 0
+
+    def test_identical_strings_parsing_to_different_dates_is_flagged(self) -> None:
+        # Simulates a parser/format-detection bug: same raw string, two parsed dates.
+        df = pl.DataFrame(
+            {
+                "code": ["A1", "A1"],
+                "raw": ["4/12/2023", "4/12/2023"],
+                "parsed": [date(2023, 4, 12), date(2023, 12, 4)],
+            }
+        )
+        result = check_duplicate_date_string_consistency(df, "code", "raw", "parsed")
+        assert result.mismatched_groups == 1
+        assert result.mismatched_group_keys == ["A1"]
+
+    def test_transposed_pair_group_excluded_not_flagged(self) -> None:
+        # This is the case the user's correction was about: a duplicate group
+        # whose two rows have DIFFERENT (transposed) raw strings must not be
+        # counted here at all -- it belongs in the transposed-pair report.
+        df = pl.DataFrame(
+            {
+                "code": ["A1", "A1"],
+                "raw": ["4/12/2023", "12/4/2023"],
+                "parsed": [date(2023, 4, 12), date(2023, 12, 4)],
+            }
+        )
+        result = check_duplicate_date_string_consistency(df, "code", "raw", "parsed")
+        assert result.groups_checked == 0
+        assert result.mismatched_groups == 0
+
+    def test_null_group_key_excluded(self) -> None:
+        df = pl.DataFrame(
+            {
+                "code": [None, None],
+                "raw": ["4/12/2023", "4/12/2023"],
+                "parsed": [date(2023, 4, 12), date(2023, 4, 12)],
+            }
+        )
+        result = check_duplicate_date_string_consistency(df, "code", "raw", "parsed")
+        assert result.groups_checked == 0
+
+    def test_single_row_group_excluded(self) -> None:
+        df = pl.DataFrame({"code": ["A1"], "raw": ["4/12/2023"], "parsed": [date(2023, 4, 12)]})
+        result = check_duplicate_date_string_consistency(df, "code", "raw", "parsed")
+        assert result.groups_checked == 0
+
+
+class TestFindTransposedDateStringPairs:
+    def test_transposed_pair_detected(self) -> None:
+        df = pl.DataFrame({"code": ["A1", "A1"], "date": ["4/12/2023", "12/4/2023"]})
+        assert find_transposed_date_string_pairs(df, "code", "date") == ["A1"]
+
+    def test_non_transposed_pair_excluded(self) -> None:
+        df = pl.DataFrame({"code": ["A1", "A1"], "date": ["4/12/2023", "4/13/2023"]})
+        assert find_transposed_date_string_pairs(df, "code", "date") == []
+
+    def test_three_distinct_raw_dates_excluded(self) -> None:
+        df = pl.DataFrame(
+            {"code": ["A1", "A1", "A1"], "date": ["4/12/2023", "12/4/2023", "5/1/2023"]}
+        )
+        assert find_transposed_date_string_pairs(df, "code", "date") == []
+
+    def test_identical_strings_excluded(self) -> None:
+        df = pl.DataFrame({"code": ["A1", "A1"], "date": ["4/12/2023", "4/12/2023"]})
+        assert find_transposed_date_string_pairs(df, "code", "date") == []
+
+    def test_single_row_group_excluded(self) -> None:
+        df = pl.DataFrame({"code": ["A1"], "date": ["4/12/2023"]})
+        assert find_transposed_date_string_pairs(df, "code", "date") == []
+
+    def test_null_group_key_excluded(self) -> None:
+        df = pl.DataFrame({"code": [None, None], "date": ["4/12/2023", "12/4/2023"]})
+        assert find_transposed_date_string_pairs(df, "code", "date") == []
+
+    def test_three_row_group_with_two_distinct_transposed_dates_detected(self) -> None:
+        # Mirrors the real 23 three-row groups: one candidate date repeated.
+        df = pl.DataFrame(
+            {
+                "code": ["A1", "A1", "A1"],
+                "date": ["4/12/2023", "4/12/2023", "12/4/2023"],
+            }
+        )
+        assert find_transposed_date_string_pairs(df, "code", "date") == ["A1"]
+
+    def test_non_slash_raw_value_excluded_not_crashed(self) -> None:
+        # A group with 2 distinct raw values where one isn't a plain slash
+        # date (e.g. a stray Excel serial, see the accident2020 P1 note)
+        # must be skipped, not raise.
+        df = pl.DataFrame({"code": ["A1", "A1"], "date": ["45746", "4/12/2023"]})
+        assert find_transposed_date_string_pairs(df, "code", "date") == []
+
+
+class TestDiscriminateTransposedDatePairs:
+    def test_resolves_unique_using_report_date_gap(self) -> None:
+        # row1 (April 12) reports 3 days later -> valid.
+        # row2 (December 4, the transposed reading) would report BEFORE the
+        # accident happened -> invalid. Only one candidate survives.
+        df = pl.DataFrame(
+            {
+                "code": ["A", "A"],
+                "accident": ["4/12/2023", "12/4/2023"],
+                "report": ["4/15/2023", "4/15/2023"],
+            }
+        )
+        result = discriminate_transposed_date_pairs(
+            df, "code", ["A"], "accident", "report", month_first=True
+        )
+        assert result.resolved_unique == 1
+        assert result.both_valid == 0
+        assert result.neither_valid == 0
+        resolution = result.resolutions[0]
+        assert resolution.outcome == "resolved_unique"
+        assert resolution.valid_dates == [date(2023, 4, 12)]
+
+    def test_both_candidates_valid_is_undecidable(self) -> None:
+        df = pl.DataFrame(
+            {
+                "code": ["B", "B"],
+                "accident": ["4/12/2023", "12/4/2023"],
+                "report": ["4/20/2023", "12/10/2023"],
+            }
+        )
+        result = discriminate_transposed_date_pairs(
+            df, "code", ["B"], "accident", "report", month_first=True
+        )
+        assert result.both_valid == 1
+        assert result.resolved_unique == 0
+        assert result.neither_valid == 0
+
+    def test_neither_candidate_valid_is_flagged(self) -> None:
+        df = pl.DataFrame(
+            {
+                "code": ["C", "C"],
+                "accident": ["4/12/2023", "12/4/2023"],
+                "report": ["6/1/2024", "6/1/2024"],
+            }
+        )
+        result = discriminate_transposed_date_pairs(
+            df, "code", ["C"], "accident", "report", month_first=True
+        )
+        assert result.neither_valid == 1
+        assert result.resolved_unique == 0
+        assert result.both_valid == 0
+
+    def test_three_row_group_requires_all_rows_of_a_candidate_to_pass(self) -> None:
+        # Candidate "April 12" has two rows: one valid, one with a huge gap.
+        # Because not ALL rows for that candidate pass, the whole candidate
+        # is invalid -- the surviving December 4 (one row, valid) wins.
+        df = pl.DataFrame(
+            {
+                "code": ["D", "D", "D"],
+                "accident": ["4/12/2023", "4/12/2023", "12/4/2023"],
+                "report": ["4/20/2023", "8/1/2024", "12/10/2023"],
+            }
+        )
+        result = discriminate_transposed_date_pairs(
+            df, "code", ["D"], "accident", "report", month_first=True
+        )
+        assert result.resolved_unique == 1
+        assert result.resolutions[0].valid_dates == [date(2023, 12, 4)]
+
+    def test_unparseable_report_date_makes_that_candidate_invalid(self) -> None:
+        # A malformed report date (e.g. a stray Excel serial, see the
+        # accident2020 P1 note) must invalidate its candidate, not raise.
+        df = pl.DataFrame(
+            {
+                "code": ["E", "E"],
+                "accident": ["4/12/2023", "12/4/2023"],
+                "report": ["not-a-date", "12/10/2023"],
+            }
+        )
+        result = discriminate_transposed_date_pairs(
+            df, "code", ["E"], "accident", "report", month_first=True
+        )
+        assert result.resolved_unique == 1
+        assert result.resolutions[0].valid_dates == [date(2023, 12, 4)]
+
+    def test_unparseable_raw_accident_date_skipped_as_candidate(self) -> None:
+        df = pl.DataFrame(
+            {
+                "code": ["F", "F"],
+                "accident": ["not-a-date", "12/4/2023"],
+                "report": ["1/1/2023", "12/10/2023"],
+            }
+        )
+        result = discriminate_transposed_date_pairs(
+            df, "code", ["F"], "accident", "report", month_first=True
+        )
+        assert result.resolutions[0].candidate_dates == [date(2023, 12, 4)]
+        assert result.resolved_unique == 1
