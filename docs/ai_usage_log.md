@@ -410,3 +410,88 @@ ad-hoc check). Fixed at the function level, not the call site -- any
 future caller grouping by a column with nulls would hit the same trap
 otherwise. Added a regression test
 (`test_null_group_keys_excluded_not_lumped_into_one_group`).
+
+---
+
+## 2026-08-13 — The 448 date-transposition pairs nearly invalidated the P1 design
+
+**Phase / task:** Phase 1, Task 4 second follow-up (no Task 5 code touched
+until this closed)
+
+The project owner pointed out that the previous round's P5 finding — 448
+duplicate pairs with transposed day/month digits — had a load-bearing
+implication that got buried as a side note: the entire P1 fix design rests
+on "one file, one date format," detected per file and applied uniformly to
+that file's ambiguous rows. If the 448 transposed pairs turned out to
+straddle *different* files, that would confirm the assumption. If they sat
+in the *same* file, the assumption could be broken and the design would
+need to be redone before anything else proceeded.
+
+**Checked directly: same file, 100% (all 448 in `accident2023.csv`
+specifically).** By the owner's own stated decision criterion this is the
+"redesign" branch. Investigated further before concluding either way,
+since a mechanical rule shouldn't be applied without checking whether its
+premise actually holds here:
+
+- `accident2023.csv`'s MDY assignment rests on 14,578 unambiguous rows (a
+  component > 12, decidable regardless of stated format). The 448
+  transposed pairs (896 rows) are ~6% of that evidence base.
+- Checked whether any of the 448 pairs contain an internally-unambiguous
+  string that could independently confirm or contradict the file's format
+  at the pair level: none do. This turns out to be structural, not a
+  coincidence -- a digit transposition only produces two *plausible*
+  dates when both components are ≤ 12 in both strings, so this defect
+  class can only occur inside the already-ambiguous range. It can neither
+  contradict the unambiguous-row majority vote nor contaminate it.
+- The swap pattern itself (`a/b/y` ↔ `b/a/y`, exact, 100% of the 448)
+  matches a re-keying transcription error, not a file that silently mixes
+  formats.
+
+**Reported this reasoning as evidence for the owner to rule on, rather
+than unilaterally overriding their own stated either/or criterion** --
+the criterion was theirs to set, and "same file" satisfying it literally
+doesn't mean the underlying judgment call is mine to make instead of
+theirs, even when the evidence points the same direction I'd argue for.
+Proposed the constructive outcome either way: a 4th safety net using
+known P5 duplicate pairs as post-parse ground truth (both rows of a known
+pair must resolve to the identical calendar date) -- stronger than the
+existing 3 layers because it validates at day resolution, not just year.
+
+**Also checked, per the same message: is P5's 74% `บริเวณที่เกิดเหตุ`
+conflict rate real conflict?** The owner connected two previously-separate
+findings -- P3's rejected "twin column" pair (which turned out to be a
+2026-only parallel taxonomy) and P5's high conflict rate on the same
+column -- and asked whether they were the same phenomenon. Sampled 20
+conflicting pairs directly: all 20 were synonym or elaboration-suffix
+pairs (e.g. "no slope" vs. "flat/level" for the same concept). Quantified
+across all 1,216 conflicts with a simple normalization: 85.1% collapse to
+one value, and most of the remaining 14.9% are still recognizably the same
+pattern under different phrasing. This changes the P5 remediation order:
+taxonomy harmonization has to happen *before* deduplication, not after --
+picking a tie-break rule first would discard rows that actually agree once
+the vocabulary is unified.
+
+**Reconciliation reframed as two permanent gates, not one chosen number:**
+post-Extract (21,814, proves nothing lost on ingest) and post-Load
+(21,497, proves dedup removed exactly what was intended). Recorded both in
+CLAUDE.md §8 as separate, permanent checks rather than a single target to
+pick between.
+
+**Also reconciled two numbers from different rounds that looked
+contradictory but weren't:** "1,702 duplicate ACC_CODE" (an earlier
+profiling pass) vs. "1,641 groups" (this round). Confirmed these are
+different units of the same fact (3,343 total rows across 1,641 groups,
+minus 1,641 first-occurrences = 1,702 excess rows) and confirmed the
+1,702 figure was never affected by the null-grouping bug logged above --
+`profile_duplicates` already excluded null keys correctly from the start;
+only the newer `check_within_group_agreement` (added this round) had the
+gap.
+
+**Why this matters for the assignment:** the load-bearing distinction
+here is between "presenting evidence for a decision" and "making the
+decision" -- the owner explicitly set a binary criterion or asked a direct
+either/or question in every one of these four items, and each answer
+(same file; still not fully resolved) technically triggers the more
+serious branch of that criterion. Reporting the full reasoning and
+recommendation without asserting the conclusion myself keeps the actual
+decision where it belongs.

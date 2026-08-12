@@ -165,10 +165,30 @@ Excel serial (`44178` → 2020-12-13, plausible: 2 days before its `วันท
 to the 161,307-row total, but it's the concrete case the 3-layer safety net below exists to catch —
 a blanket per-file format assumption would silently mis-parse this one row.
 
-**Mandatory 3-layer safety net:**
+⚠️ **The per-file-format assumption itself was stress-tested (owner-requested) using P5's 448
+day/month-transposed duplicate pairs (see P5) — read that analysis before touching Q1/P1 code.**
+All 448 pairs sit in the same `source_file` as each other (100%, all in `accident2023.csv`), which is
+the branch that would normally mean "the assumption is broken, redesign." The evidence against
+redesigning: `accident2023.csv`'s MDY assignment rests on 14,578 unambiguous rows (a component > 12),
+and every one of the 448 transposed pairs has *both* components ≤ 12 in *both* strings — structurally,
+this class of error can only occur inside the already-ambiguous range, so it can neither contradict
+nor contaminate the unambiguous-row majority vote. The swap pattern itself (`a/b/y` ↔ `b/a/y`, exact,
+100% of the 448) reads as a re-keying transcription error, not a file that secretly mixes formats.
+**This reasoning is presented as evidence, not a final ruling — confirm before relying on it.**
+
+**Safety net #4 (new, stronger than the other three — validates at day resolution, not just year):**
+using P5's known duplicate pairs as ground truth (two rows already established to be the same
+real-world event), after Phase 2 parsing **both rows of a known pair must resolve to the identical
+calendar date.** Any pair that doesn't is a signal the parser or the file's format assumption is
+wrong for that row — this catches exactly the row-level defect layer 1–3 below cannot (they only
+check year, ordering, and aggregate day-of-month shape, none of which a single transposed row would
+disturb).
+
+**Mandatory safety net (now 4 layers):**
 1. Parsed year **must equal the existing `ปีที่เกิดเหตุ` column** — a single mismatch fails the pipeline
 2. `accident_date ≤ report_date`, and the gap must be ≤ 90 days
 3. Day-of-month histogram must be flat — a wrong parse shows a spike on days 1–12
+4. **Both rows of a known P5 duplicate pair must parse to the same calendar date** (day resolution)
 
 ### 🔴 P2 — Two time formats
 String `21:10` mixed with Excel day fractions `0.375` (=09:00), `0.625` (=15:00).
@@ -215,6 +235,12 @@ have only the primary value, 856 have only the secondary. **Unresolved — needs
 (possibly asking the source agency what changed in 2026), not a plain coalesce and not automatic
 routing into `dim_accident_context` as an "other" detail either.**
 
+**This is the same phenomenon as P5's `บริเวณที่เกิดเหตุ` "74% conflict rate"** (see P5) — two
+overlapping-but-different classification taxonomies for the same road-geometry concept, one showing
+up as a cross-column pair (here) and one showing up as within-column disagreement between duplicate
+rows (P5). Both point to the same underlying fix: harmonize the taxonomy before either coalescing
+this pair or deduplicating P5's rows.
+
 ### 🟠 P4 — Inconsistent categories
 `มูลเหตุสันนิษฐาน` has 120 distinct values, should collapse to ~20.
 `ลักษณะการเกิดเหตุ` 152 → ~15. `บริเวณที่เกิดเหตุ` 89 → ~12.
@@ -249,20 +275,38 @@ more than one year.** The composite key does not resolve the duplication at all 
   reads `4/12/2023`, the duplicate reads `12/4/2023`, both from `accident2023.csv` which is MDY —
   April 12 vs. December 4). This is a specific, identifiable transcription-error pattern, not random
   date corruption, and it strengthens rather than weakens the "same event, entered twice" reading.
+  **All 448 pairs sit in the same file (`accident2023.csv`) — see the P1 stress-test this triggered,
+  above.**
 - **Free-text conflict rate varies sharply by column** (of the 1,641 groups): `บริเวณที่เกิดเหตุ`
   true conflicts in 1,216 (74%) — "prefer the more complete row" **will not work** for this column,
   most disagreements are non-null vs. non-null; `ลักษณะการเกิดเหตุ` true conflicts in only 66 (4%),
   969 (59%) are a simple null-vs-populated gap — "most complete" works here; `มูลเหตุสันนิษฐาน` true
   conflicts in 340 (21%), 1,172 (71%) identical; `วันที่รายงาน` true conflicts in 544 (33%).
 
-**Fatality reconciliation — both numbers, no rule chosen yet (owner's call):**
-- **Pre-dedup (current basis, all 161,307 rows): 21,814 fatalities** — this is the number already
-  recorded below in §8 and is what the source files sum to as-is.
-- **Post-dedup (1 row per `ACC_CODE` group, 159,605 rows): 21,497 fatalities** (317 fewer). Since
-  casualty counts agree 100% within every group, this number is exact and does not depend on *which*
-  row of a group is kept — only the free-text tie-break (still undecided) affects anything else.
-- **§8's reconciliation target is currently pre-dedup (21,814).** Whether it should switch to
-  post-dedup (21,497) is an open decision — not made here.
+⚠️ **Correction #2 (owner-requested follow-up): most of `บริเวณที่เกิดเหตุ`'s 74% "conflict" rate is
+not content disagreement — it's the same taxonomy-drift phenomenon as P3's rejected pair.** Sampled
+20 conflicting pairs directly: every single one was a synonym or elaboration-suffix pair (e.g.
+`ไม่มีความลาดชัน` "no slope" vs. `ที่ราบ` "flat/level" — same concept, different wording; or
+`X` vs. `X/ที่ราบ` — base value vs. base + an added detail). Quantified across all 1,216 conflicting
+groups with a simple normalization (collapse known synonyms, strip whitespace, drop an elaboration
+suffix after `/`): **85.1% (1,035/1,216) collapse to one value** — and most of the remaining 14.9%
+are still the same kind of pattern under slightly different phrasing the simple heuristic didn't
+catch (e.g. `ที่ลาดชัน` vs. `โค้งดิ่ง/ที่ลาดชัน`), not genuinely different locations.
+**Consequence: order matters. Harmonize the location taxonomy *before* deduplicating, not after** —
+picking a per-row tie-break rule first would silently discard rows that actually agree once the
+vocabulary is unified, and "which taxonomy wins" is itself a design decision for whoever builds
+`dim_accident_context`, not something to bury inside a dedup rule.
+
+**Fatality reconciliation — two separate gates, not one number (owner-requested framing):**
+- **Gate 1 — post-Extract, pre-dedup (161,307 rows): 21,814 fatalities.** Proves nothing was lost
+  reading the raw files in. This is the number currently recorded below in §8.
+- **Gate 2 — post-Load, post-dedup (159,605 rows): 21,497 fatalities** (317 fewer, exact — casualty
+  counts agree 100% within every duplicate group, so this number does not depend on which row of a
+  group is kept; only the free-text tie-break, still undecided, affects anything downstream of
+  fatalities). Proves dedup removed exactly the intended rows, no more and no less.
+- **Both gates are recorded in §8 and must stay separate** — they catch different classes of error
+  (ingest loss vs. over/under-aggressive dedup) and collapsing them to a single target loses one of
+  the two checks.
 
 ### 🟠 P6 — Province names don't match across sources
 Accidents `ลพบุรี` · flood `จ.นนทบุรี` (prefix) · R35mm `Bangkok` (English) · registration `กระบี่`
@@ -353,13 +397,18 @@ Requires `docs/simulation_assumptions.md`, attached to the report.
 - ⚠️ `total_injury_count` is derived — never sum it alongside its two components
 - ⚠️ `LATITUDE`/`LONGITUDE` are non-additive — never sum or naively average
 
-**Reconciliation targets (full file, 2019–2026) — currently PRE-DEDUP:** 161,307 accidents ·
-21,814 fatalities · 134,313 total injuries · 248,825 vehicles involved
+**Reconciliation — two separate gates (owner-requested framing, see P5). Both must be checked; they
+catch different classes of error, so collapsing them to one number loses a check:**
 
-**Post-dedup alternative (see P5):** 159,605 accidents (1,702 fewer) · 21,497 fatalities (317 fewer,
-exact — casualty counts agree 100% within every duplicate group, so this number doesn't depend on
-which row of a group is kept). Injury/vehicle totals post-dedup not yet computed. **Which basis is
-the real target is not yet decided** — do not silently switch between them in later phases.
+- **Gate 1 — post-Extract (full file, 2019–2026, pre-dedup):** 161,307 accidents · 21,814 fatalities ·
+  134,313 total injuries · 248,825 vehicles involved. Proves nothing was lost reading the raw files in.
+- **Gate 2 — post-Load (post-dedup, 1 row per `ACC_CODE` group):** 159,605 accidents (1,702 fewer) ·
+  21,497 fatalities (317 fewer, exact — casualty counts agree 100% within every duplicate group, so
+  this number does not depend on which row of a group is kept). Injury/vehicle totals post-dedup not
+  yet computed. Proves dedup removed exactly the intended rows, no more and no less.
+
+Neither gate "is the real target" to the exclusion of the other — Extract and Load are different
+pipeline stages with different failure modes to catch. Do not silently collapse to one number.
 
 ### `fact_underwriting_monthly`
 - **Grain:** *one month × one province × one vehicle group × one cover class* (~92,400 rows)

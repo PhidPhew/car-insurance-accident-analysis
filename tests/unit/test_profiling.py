@@ -8,9 +8,12 @@ from rri.utils.profiling import (
     classify_date_string,
     classify_time_string,
     compute_dedup_impact,
+    count_resolved_by_normalization,
     detect_delimiter,
     detect_line_ending,
+    find_conflicting_groups,
     find_null_correlated_column_groups,
+    normalize_for_synonym_check,
     population_rate_by_group,
     profile_column,
     profile_csv_file,
@@ -19,6 +22,7 @@ from rri.utils.profiling import (
     profile_file_metadata,
     profile_json_structure,
     profile_time_column_formats,
+    sample_deterministic,
 )
 
 
@@ -445,3 +449,95 @@ class TestPopulationRateByGroup:
         df = pl.DataFrame({"year": ["2019", "2019"], "value": [None, None]})
         result = population_rate_by_group(df, "year", "value")
         assert result["populated_rows"].to_list() == [0]
+
+
+class TestFindConflictingGroups:
+    def test_returns_key_and_sorted_distinct_values_for_conflicting_groups(self) -> None:
+        df = pl.DataFrame(
+            {
+                "code": ["A1", "A1", "A2", "A2"],
+                "location": ["straight road", "curved road", "flat", "flat"],
+            }
+        )
+        result = find_conflicting_groups(df, ["code"], "location")
+        assert len(result) == 1
+        key, values = result[0]
+        assert key == ("A1",)
+        assert values == ["curved road", "straight road"]
+
+    def test_agreeing_groups_excluded(self) -> None:
+        df = pl.DataFrame({"code": ["A1", "A1"], "location": ["flat", "flat"]})
+        assert find_conflicting_groups(df, ["code"], "location") == []
+
+    def test_null_group_keys_excluded(self) -> None:
+        df = pl.DataFrame({"code": [None, None], "location": ["x", "y"]})
+        assert find_conflicting_groups(df, ["code"], "location") == []
+
+    def test_null_values_within_group_ignored_not_treated_as_conflict(self) -> None:
+        df = pl.DataFrame({"code": ["A1", "A1"], "location": ["flat", None]})
+        assert find_conflicting_groups(df, ["code"], "location") == []
+
+    def test_single_row_groups_excluded(self) -> None:
+        df = pl.DataFrame({"code": ["A1", "A2"], "location": ["x", "y"]})
+        assert find_conflicting_groups(df, ["code"], "location") == []
+
+
+class TestSampleDeterministic:
+    def test_same_seed_gives_same_sample(self) -> None:
+        items = list(range(100))
+        assert sample_deterministic(items, 10, seed=42) == sample_deterministic(items, 10, seed=42)
+
+    def test_different_seed_can_give_different_sample(self) -> None:
+        items = list(range(100))
+        a = sample_deterministic(items, 10, seed=1)
+        b = sample_deterministic(items, 10, seed=2)
+        assert a != b
+
+    def test_n_larger_than_items_returns_all(self) -> None:
+        items = [1, 2, 3]
+        assert sorted(sample_deterministic(items, 10, seed=42)) == [1, 2, 3]
+
+
+class TestNormalizeForSynonymCheck:
+    def test_collapses_no_slope_and_flat_synonym(self) -> None:
+        assert normalize_for_synonym_check("ทางตรง+ไม่มีความลาดชัน") == normalize_for_synonym_check(
+            "ทางตรง+ที่ราบ"
+        )
+
+    def test_strips_elaboration_suffix_after_slash(self) -> None:
+        assert normalize_for_synonym_check(
+            "ทางตรง+ไม่มีความลาดชัน/ที่ราบ"
+        ) == normalize_for_synonym_check("ทางตรง+ไม่มีความลาดชัน")
+
+    def test_removes_internal_whitespace(self) -> None:
+        assert normalize_for_synonym_check("ทางสามแยก (Y)") == normalize_for_synonym_check(
+            "ทางสามแยก(Y)"
+        )
+
+    def test_genuinely_different_values_stay_different(self) -> None:
+        assert normalize_for_synonym_check("ทางตรง") != normalize_for_synonym_check("ทางโค้ง")
+
+
+class TestCountResolvedByNormalization:
+    def test_synonym_pair_counts_as_resolved(self) -> None:
+        conflicts: list[tuple[tuple[str, ...], list[str]]] = [
+            (("A1",), ["ทางตรง+ไม่มีความลาดชัน", "ทางตรง+ที่ราบ"])
+        ]
+        resolved, still = count_resolved_by_normalization(conflicts)
+        assert resolved == 1
+        assert still == 0
+
+    def test_genuinely_different_pair_stays_conflicting(self) -> None:
+        conflicts: list[tuple[tuple[str, ...], list[str]]] = [(("A1",), ["ทางตรง", "ทางโค้ง"])]
+        resolved, still = count_resolved_by_normalization(conflicts)
+        assert resolved == 0
+        assert still == 1
+
+    def test_mixed_set(self) -> None:
+        conflicts: list[tuple[tuple[str, ...], list[str]]] = [
+            (("A1",), ["ทางตรง+ไม่มีความลาดชัน", "ทางตรง+ที่ราบ"]),
+            (("A2",), ["ทางตรง", "ทางโค้ง"]),
+        ]
+        resolved, still = count_resolved_by_normalization(conflicts)
+        assert resolved == 1
+        assert still == 1

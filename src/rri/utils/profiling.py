@@ -10,13 +10,16 @@ fix, or drop anything. Cleaning logic belongs in ``src/rri/cleaning/``
 from __future__ import annotations
 
 import json
+import random
 import re
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 import polars as pl
+
+T = TypeVar("T")
 
 # --------------------------------------------------------------------------
 # File-level metadata
@@ -524,3 +527,84 @@ def population_rate_by_group(df: pl.DataFrame, group_col: str, target_col: str) 
         )
         .sort(group_col)
     )
+
+
+# --------------------------------------------------------------------------
+# Conflicting-group extraction (which duplicate groups disagree on a
+# column, and what are the actual conflicting values -- for direct
+# inspection rather than a single agree/conflict count)
+# --------------------------------------------------------------------------
+
+
+def find_conflicting_groups(
+    df: pl.DataFrame, group_keys: list[str], target_column: str
+) -> list[tuple[tuple[str, ...], list[str]]]:
+    """For groups (by `group_keys`, excluding null keys) with >1 distinct non-null
+    `target_column` value, return each group's key and its sorted distinct values.
+
+    Unlike `check_within_group_agreement` (which only counts), this returns
+    the actual conflicting values so they can be inspected directly -- e.g.
+    to check whether "conflicting" values are genuinely different or just
+    differently-worded synonyms.
+    """
+    keyed = df.filter(pl.all_horizontal([pl.col(c).is_not_null() for c in group_keys]))
+    conflicts: list[tuple[tuple[str, ...], list[str]]] = []
+    for key_values, group in keyed.group_by(group_keys, maintain_order=True):
+        non_null = [v for v in group.get_column(target_column).to_list() if v is not None]
+        distinct = sorted(set(non_null))
+        if len(distinct) > 1:
+            conflicts.append((tuple(str(k) for k in key_values), distinct))
+    return conflicts
+
+
+def sample_deterministic(items: list[T], n: int, seed: int) -> list[T]:
+    """Deterministically sample up to `n` items (CLAUDE.md N9: reproducible, seeded)."""
+    rng = random.Random(seed)
+    return rng.sample(items, min(n, len(items)))
+
+
+# Diagnostic-only heuristic for measuring how much of a "conflict" rate is
+# actually taxonomy/formatting noise, NOT a Phase 2 cleaning rule. Rules
+# below were derived by inspecting a real sample of conflicting
+# บริเวณที่เกิดเหตุ pairs (CLAUDE.md P5/P3 investigation): they collapse
+# known synonym pairs and formatting variants so genuinely different
+# values can be told apart from differently-worded identical ones.
+_LOCATION_SYNONYM_SUBSTITUTIONS = (
+    ("ไม่มีความลาดชัน", "ที่ราบ"),  # "no slope" == "flat/level"
+    ("พานิชย์", "พาณิชย์"),  # spelling variant of "commercial"
+    ("หรือ", "/"),  # "X หรือ Y" (X or Y) ~= "X/Y"
+)
+
+
+def normalize_for_synonym_check(value: str) -> str:
+    """Collapse known synonym/formatting variants for a same-concept comparison.
+
+    NOT a canonical cleaning function -- purely diagnostic, to measure
+    whether raw "conflicts" between two values are the same concept
+    differently phrased, before deciding whether a tie-break rule or a
+    taxonomy harmonization step is the right fix.
+    """
+    normalized = re.sub(r"\s+", "", value.strip())
+    for old, new in _LOCATION_SYNONYM_SUBSTITUTIONS:
+        normalized = normalized.replace(old, new)
+    normalized = normalized.split("/")[0]  # drop an elaboration/alt-taxonomy suffix
+    normalized = normalized.replace("ทางเชื่อมเข้า", "")
+    return normalized
+
+
+def count_resolved_by_normalization(
+    conflicts: list[tuple[tuple[str, ...], list[str]]],
+) -> tuple[int, int]:
+    """Among conflicting groups, how many collapse to one value under `normalize_for_synonym_check`?
+
+    Returns (resolved_count, still_conflicting_count).
+    """
+    resolved = 0
+    still_conflicting = 0
+    for _, values in conflicts:
+        normalized_values = {normalize_for_synonym_check(v) for v in values}
+        if len(normalized_values) == 1:
+            resolved += 1
+        else:
+            still_conflicting += 1
+    return resolved, still_conflicting
