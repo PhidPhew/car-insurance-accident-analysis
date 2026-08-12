@@ -1,0 +1,51 @@
+﻿Month,GEOCODE,TAMBON_T,TAMBON_E,AMPHOE_CODE,AMPHOE_T,AMPHOE_E,PROV_CODE,PROV_T,PROV_E,COUNT 17 YEAR,CRITERIA,RISK
+1,120501,ต.ไทรน้อย,Sai Noi,1205,อ.ไทรน้อย,Sai Noi District,12,จ.นนทบุรี,Nonthaburi,1,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+2,140511,ต.วัดตะกู,Wat Taku,1405,อ.บางบาล,Bang Ban District,14,จ.พระนครศรีอยุธยา,Phra Nakhon Si Ayudhya,1,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+2,900903,ต.คูหาใต้,Khuha Tai,9009,อ.รัตภูมิ,Rattaphum District,90,จ.สงขลา,Songkhla,1,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+2,950115,ต.บันนังสาเรง,Bannang Sareng,9501,อ.เมืองยะลา,Mueang Yala District,95,จ.ยะลา,Yala,1,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+2,960903,ต.เกียร์,Kia,9609,อ.สุคิริน,Sukhirin District,96,จ.นราธิวาส,Narathiwat,1,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+5,670109,ต.บ้านโคก,Ban Khok,6701,อ.เมืองเพชรบูรณ์,Mueang Phetchabun District,67,จ.เพชรบูรณ์,Phetchabun,1,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+6,100301,แขวงกระทุ่มราย,Krathum Rai,1003,เขตหนองจอก,Nong Chok District,10,กรุงเทพมหานคร,Bangkok,1,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+6,300605,ต.หนองขาม,Nong Kham,3006,อ.จักราช,Chakkarat District,30,จ.นครราชสีมา,Nakhon Ratchasima,1,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+6,530101,ต.ท่าอิฐ,Tha It,5301,อ.เมืองอุตรดิตถ์,Mueang Uttaradit District,53,จ.อุตรดิตถ์,Auttaradit,2,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+6,530603,ต.นาขุม,Na Khum,5306,อ.บ้านโคก,Ban Khok District,53,จ.อุตรดิตถ์,Auttaradit,1,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+6,571403,ต.ยางฮอม,Yang Hom,5714,อ.ขุนตาล,Khun Tan District,57,จ.เชียงราย,Chiangrai,2,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+6,620117,ต.คลองแม่ลาย,Khlong Mae Lai,6201,อ.เมืองกำแพงเพชร,Mueang Kamphaeng Phet District,62,จ.กำแพงเพชร,Kampaeng Phet,2,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+6,640203,ต.วังตะคร้อ,Wang Takhro,6402,อ.บ้านด่านลานหอย,Ban Dan Lan Hoi District,64,จ.สุโขทัย,Sukhothai,1,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+6,740105,ต.บางโทรัด,Bang Thorat,7401,อ.เมืองสมุทรสาคร,Mueang Samut Sakhon District,74,จ.สมุทรสาคร,Samut Sakhon,1,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+6,841716,ต.ตะปาน,Tapan,8417,อ.พุนพิน,Phunphin District,84,จ.สุราษฎร์ธานี,Surat Thani,1,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+7,401703,ต.หนองแปน,Nong Paen,4017,อ.มัญจาคีรี,Mancha Khiri District,40,จ.ขอนแก่น,Khon Kaen,1,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+7,501502,ต.หนองแก๋ว,Nong Kaeo,5015,อ.หางดง,Hang Dong District,50,จ.เชียงใหม่,Chiang Mai,2,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+7,560118,ต.สันป่าม่วง,San Pa Muang,5601,อ.เมืองพะเยา,Mueang Phayao District,56,จ.พะเยา,Phayao,1,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+7,560801,ต.ภูซาง,Phu Sang,5608,อ.ภูซาง,Phu Sang District,56,จ.พะเยา,Phayao,3,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+8,140209,ต.หนองขนาก,Nong Khanak,1402,อ.ท่าเรือ,Tha Ruea District,14,จ.พระนครศรีอยุธยา,Phra Nakhon Si Ayudhya,1,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+8,440201,ต.แกดำ,Kae Dam,4402,อ.แกดำ,Kae Dam District,44,จ.มหาสารคาม,Mahasarakham,1,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+8,510701,ต.บ้านธิ,Ban Thi,5107,อ.บ้านธิ,Ban Thi District,51,จ.ลำพูน,Lamphun,4,4-8 ครั้งในรอบ 17 ปี,เสี่ยงปานกลาง
+8,640405,ต.ไกรใน,Krai Nai,6404,อ.กงไกรลาศ,Kong Krailat District,64,จ.สุโขทัย,Sukhothai,8,4-8 ครั้งในรอบ 17 ปี,เสี่ยงปานกลาง
+8,650906,ต.เนินมะปราง,Noen Maprang,6509,อ.เนินมะปราง,Noen Maprang District,65,จ.พิษณุโลก,Phitsanu Lok,1,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+8,720806,ต.หนองสะเดา,Nong Sadao,7208,อ.สามชุก,Sam Chuk District,72,จ.สุพรรณบุรี,Suphan Buri,2,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+9,130404,ต.บึงชำอ้อ,Bueng Cham O,1304,อ.หนองเสือ,Nong Suea District,13,จ.ปทุมธานี,Pathum Thani,4,4-8 ครั้งในรอบ 17 ปี,เสี่ยงปานกลาง
+9,310607,ต.หนองแวง,Nong Waeng,3106,อ.ละหานทราย,Lahan Sai District,31,จ.บุรีรัมย์,Burirum,1,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+9,320703,ต.แก,Kae,3207,อ.รัตนบุรี,Rattanaburi District,32,จ.สุรินทร์,Surin,8,4-8 ครั้งในรอบ 17 ปี,เสี่ยงปานกลาง
+9,320907,ต.คาละแมะ,Khalamae,3209,อ.ศีขรภูมิ,Sikhoraphum District,32,จ.สุรินทร์,Surin,2,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+9,360905,ต.โป่งนก,Pong Nok,3609,อ.เทพสถิต,Thep Sathit District,36,จ.ชัยภูมิ,Chaiyaphum,1,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+10,301904,ต.หนองสรวง,Nong Suang,3019,อ.ขามทะเลสอ,Kham Thale So District,30,จ.นครราชสีมา,Nakhon Ratchasima,8,4-8 ครั้งในรอบ 17 ปี,เสี่ยงปานกลาง
+10,320102,ต.ตั้งใจ,Tang Chai,3201,อ.เมืองสุรินทร์,Mueang Surin District,32,จ.สุรินทร์,Surin,1,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+10,330811,ต.โพธิ์กระสังข์,Pho Krasang,3308,อ.ขุนหาญ,Khun Han District,33,จ.ศรีสะเกษ,Sisaket,2,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+10,440110,ต.ลาดพัฒนา,Lat Phatthana,4401,อ.เมืองมหาสารคาม,Mueang Maha Sarakham District,44,จ.มหาสารคาม,Mahasarakham,10,9-17 ครั้งในรอบ 17 ปี,เสี่ยงสูง
+10,700603,ต.หัวโพ,Hua Pho,7006,อ.บางแพ,Bang Phae District,70,จ.ราชบุรี,Ratchaburi,7,4-8 ครั้งในรอบ 17 ปี,เสี่ยงปานกลาง
+11,250709,ต.โพธิ์งาม,Pho Ngam,2507,อ.ประจันตคาม,Prachantakham District,25,จ.ปราจีนบุรี,Prachinburi,6,4-8 ครั้งในรอบ 17 ปี,เสี่ยงปานกลาง
+11,300605,ต.หนองขาม,Nong Kham,3006,อ.จักราช,Chakkarat District,30,จ.นครราชสีมา,Nakhon Ratchasima,1,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+11,331404,ต.ตูม,Tum,3314,อ.ศรีรัตนะ,Si Rattana District,33,จ.ศรีสะเกษ,Sisaket,1,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+11,400110,ต.บ้านค้อ,Ban Kho,4001,อ.เมืองขอนแก่น,Mueang Khon Kaen District,40,จ.ขอนแก่น,Khon Kaen,1,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+11,770303,ต.นาหูกวาง,Na Hu Kwang,7703,อ.ทับสะแก,Thap Sakae District,77,จ.ประจวบคีรีขันธ์,Prachuap Khilikhan,1,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+11,800611,ต.การะเกด,Karaket,8006,อ.เชียรใหญ่,Chian Yai District,80,จ.นครศรีธรรมราช,Nakhon Si Thammarat,7,4-8 ครั้งในรอบ 17 ปี,เสี่ยงปานกลาง
+11,940106,ต.คลองมานิง,Khlong Maning,9401,อ.เมืองปัตตานี,Mueang Pattani District,94,จ.ปัตตานี,Pattani,3,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+12,320205,ต.ยะวึก,Yawuek,3202,อ.ชุมพลบุรี,Chumphon Buri District,32,จ.สุรินทร์,Surin,1,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+12,340116,ต.กุดลาด,Kut Lat,3401,อ.เมืองอุบลราชธานี,Mueang Ubon Ratchathani District,34,จ.อุบลราชธานี,Ubon Ratchathani,2,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+12,451114,ต.ทุ่งศรีเมือง,Thung Si Mueang,4511,อ.สุวรรณภูมิ,Suwannaphum District,45,จ.ร้อยเอ็ด,Roi Et,1,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+12,640303,ต.บ้านป้อม,Ban Pom,6403,อ.คีรีมาศ,Khiri Mat District,64,จ.สุโขทัย,Sukhothai,1,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+12,660505,ต.วังสำโรง,Wang Samrong,6605,อ.บางมูลนาก,Bang Mun Nak District,66,จ.พิจิตร,Phichit,2,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+12,720411,ต.มะขามล้ม,Makham Lom,7204,อ.บางปลาม้า,Bang Pla Ma District,72,จ.สุพรรณบุรี,Suphan Buri,3,1-3 ครั้งในรอบ 17 ปี,เสี่ยงต่ำ
+12,841401,ต.เคียนซา,Khian Sa,8414,อ.เคียนซา,Khian Sa District,84,จ.สุราษฎร์ธานี,Surat Thani,9,9-17 ครั้งในรอบ 17 ปี,เสี่ยงสูง
+12,841402,ต.พ่วงพรมคร,Phuang Phromkhon,8414,อ.เคียนซา,Khian Sa District,84,จ.สุราษฎร์ธานี,Surat Thani,10,9-17 ครั้งในรอบ 17 ปี,เสี่ยงสูง

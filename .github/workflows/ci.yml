@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint-typecheck-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      - name: Ruff lint
+        run: uv run ruff check .
+
+      - name: Ruff format check
+        run: uv run ruff format --check .
+
+      - name: mypy --strict
+        run: uv run mypy
+
+      - name: pytest
+        run: uv run pytest --cov=src/rri --cov-report=term-missing --cov-report=xml
+
+      - name: Enforce coverage floor for src/rri/cleaning
+        run: |
+          uv run python -c "
+          import xml.etree.ElementTree as ET
+          tree = ET.parse('coverage.xml')
+          root = tree.getroot()
+          for pkg in root.iter('class'):
+              filename = pkg.get('filename', '')
+              if 'rri/cleaning/' in filename or 'rri\\\\cleaning\\\\' in filename:
+                  rate = float(pkg.get('line-rate', '1'))
+                  assert rate >= 0.80, f'{filename} coverage {rate:.0%} < 80% (CLAUDE.md requirement)'
+          print('cleaning/ coverage floor OK')
+          "
