@@ -202,7 +202,7 @@ Province counts: accidents 77 ✅ · rainfall 77 ✅ · registration 77 ✅ · *
 ### 🟡 P7 — Remaining
 | Problem | Evidence | Fix |
 |---|---|---|
-| Coordinates outside Thailand | lat outside 5–21: 5 rows; lon outside 97–106: 10 rows | null + `is_geo_valid` flag |
+| Coordinates outside Thailand | lat outside 5–21 in 5 rows, lon outside 97–106 in 10 rows, overlapping in 5 rows → 10 distinct rows affected | null + `is_geo_valid` flag |
 | BOM `\ufeff` | every CSV | `encoding='utf-8-sig'` |
 | Typo in header | `Foreast_Month` | rename map |
 | Buddhist vs Gregorian year | registration 2565–2569 | `CE = BE − 543` |
