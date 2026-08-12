@@ -153,3 +153,57 @@ non-working status, unlike Labour Day.
 to be checked against whether it changes what a downstream business
 question (BQ3 here) can actually conclude. Both fixes turned a footnote
 into a modeled dimension the dashboard/analysis can filter or split on.
+
+---
+
+## 2026-08-12 — Task 3 province master: two things needed real investigation, not a guess
+
+**Phase / task:** Phase 1, Task 3 (`scripts/build_province_master.py`,
+`scripts/build_tat_province_crosswalk.py`)
+
+**Region classification has no single "official" answer in Thailand, so it
+was researched rather than recalled from memory.** CLAUDE.md asks for a
+"region (6 regions)" column, but Thailand has multiple co-existing regional
+classifications that disagree on several provinces — the National
+Geographic Committee's 1977 six-region system splits out a separate West
+region, while the Meteorological Department's five-region system folds
+those provinces into Central and North instead. An initial English-language
+source (Wikipedia) only resolved 68 of 77 provinces and left Phetchaburi,
+Prachuap Khiri Khan, and Tak ambiguous between Central/West/North. A second,
+Thai-language search gave per-region province *counts* for the NGC system
+(North 9, Central 21, Northeast 19-20, East 7, West 5, South 14) that pinned
+West down to exactly 5 provinces (Tak, Kanchanaburi, Ratchaburi,
+Phetchaburi, Prachuap Khiri Khan) — confirmed correct by checking the
+resulting assignment reconciles to exactly 77 against this project's own
+verified province codes, with zero left over and zero double-counted. Full
+source citations are inline in `scripts/build_province_master.py`.
+
+**TAT's 78th "province" is junk data, not a real place, and required
+tracing 78 IDs back to source records to find that out.** TAT's
+`ATT_PROVINCE_ID` uses its own internal numbering ("1001".."1077") with no
+province name field anywhere in the file, so even the 77 legitimate values
+needed a crosswalk before they could be used at all — not just the 78th.
+Built one from the data itself: Thai postal code prefixes were verified to
+line up with the project's standard province geocodes (postcode 81xxx
+co-occurs with `ATT_PROVINCE_ID` 1002, and geocode 81 = Krabi; confirmed on
+several more before trusting the method), so each ID was resolved to a
+province via the mode of its records' postcode prefix. That resolved 75 of
+77 automatically; the remaining 2 had no usable postcode at all and were
+identified by web-searching their attraction names (Wat Nong Pling →
+Kamphaeng Phet, Nam Tok Nang Non in Kudchum district → Yasothon) and
+hand-confirmed rather than guessed from coordinates alone. The 78th distinct
+value turned out to be the literal string `"1"`, attached to 13 records
+whose names are literally `"test"`, `"Hello world!"` (×3), and similar —
+an unset/default sentinel in TAT's own database, not a real 78th province.
+It is excluded from the crosswalk and reported as such, not silently
+dropped or miscounted as a real place.
+
+**Why this matters for the assignment:** both findings needed the same
+discipline as the P7 and Songkran cases above — treat a source number (77
+provinces expected, 78 found) as something to trace to its root cause
+rather than either dismissing it as noise or accepting it as a real 78th
+province. The region classification could have been guessed from general
+knowledge and looked plausible without ever being wrong in an obviously
+checkable way; sourcing it and reconciling it against the real data (77 in,
+77 out, no leftovers) is what makes it trustworthy rather than merely
+confident-sounding.

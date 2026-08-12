@@ -1,0 +1,257 @@
+"""Build reports/province_matching_report.html.
+
+Run: ``uv run python scripts/build_province_matching_report.py``
+
+Runs `normalize_province` against every distinct raw province value in every
+source that has a province column, reports the match rate, and lists every
+unmatched value. TAT is handled separately since it has no province *name*
+field at all (see config/mappings/tat_province_id_crosswalk.csv and
+scripts/build_tat_province_crosswalk.py) -- its "match rate" here is
+crosswalk coverage, not `normalize_province` coverage.
+car_registered_new_2565_2569_combined.csv has no province column (it's a
+national-level monthly series) and is excluded, not silently skipped.
+"""
+
+from __future__ import annotations
+
+import csv
+import html
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from config.settings import settings  # noqa: E402
+from rri.cleaning.province import ProvinceMatchResult, match_province_values  # noqa: E402
+from rri.utils.logging import configure_logging, get_logger  # noqa: E402
+
+log = get_logger(__name__)
+
+NAME_BASED_SOURCES: list[tuple[str, str, str]] = [
+    # (source_name, filename, column)
+    (
+        "thailand_accidents_2019_2026_combined.csv",
+        "thailand_accidents_2019_2026_combined.csv",
+        "จังหวัด",
+    ),
+    (
+        "thailand_rainfall_2021_2026_combined.csv",
+        "thailand_rainfall_2021_2026_combined.csv",
+        "Province_NameTH",
+    ),
+    ("thailand_flood_risk_areas.csv", "thailand_flood_risk_areas.csv", "PROV_T"),
+    ("thailand_heavy_rain_R35mm.csv", "thailand_heavy_rain_R35mm.csv", "Province_Name"),
+    ("stt_car_fuel_at_25690228.csv", "stt_car_fuel_at_25690228.csv", "จังหวัด"),
+]
+
+
+def load_column_values(filename: str, column: str) -> list[str]:
+    path = settings.raw_dir / filename
+    with path.open(encoding="utf-8-sig", newline="") as f:
+        reader = csv.DictReader(f)
+        return [row[column] for row in reader]
+
+
+def load_master_province_count() -> int:
+    path = settings.config_dir / "province_master.csv"
+    with path.open(encoding="utf-8-sig", newline="") as f:
+        return sum(1 for _ in csv.DictReader(f))
+
+
+def tat_crosswalk_summary() -> tuple[int, int, list[str]]:
+    """Returns (matched_count, total_distinct_pids, unmatched_pid_descriptions)."""
+    crosswalk_path = settings.mappings_dir / "tat_province_id_crosswalk.csv"
+    with crosswalk_path.open(encoding="utf-8-sig", newline="") as f:
+        matched_pids = {row["att_province_id"] for row in csv.DictReader(f)}
+
+    tat_path = settings.raw_dir / "tat_tourist_attractions.json"
+    with tat_path.open(encoding="utf-8-sig") as f:
+        records: list[dict[str, Any]] = json.load(f)
+    all_pids: dict[str, int] = {}
+    for record in records:
+        pid = record.get("ATT_PROVINCE_ID", "").strip()
+        if pid:
+            all_pids[pid] = all_pids.get(pid, 0) + 1
+
+    unmatched = [
+        f'"{pid}" ({count} records)'
+        for pid, count in sorted(all_pids.items())
+        if pid not in matched_pids
+    ]
+    return len(matched_pids), len(all_pids), unmatched
+
+
+def render_html(
+    results: list[ProvinceMatchResult],
+    tat_matched: int,
+    tat_total: int,
+    tat_unmatched: list[str],
+    master_count: int,
+) -> str:
+    def match_row(r: ProvinceMatchResult) -> str:
+        pct = r.match_rate * 100
+        status = "ok" if pct >= 99 else "warn"
+        unmatched_list = (
+            "<ul>" + "".join(f"<li>{html.escape(v)}</li>" for v in r.unmatched_values) + "</ul>"
+            if r.unmatched_values
+            else "<em>none</em>"
+        )
+        return f"""
+        <tr class="{status}">
+          <td>{html.escape(r.source_name)}</td>
+          <td>{r.total_distinct_values}</td>
+          <td>{r.matched_count}</td>
+          <td>{pct:.1f}%</td>
+          <td>{unmatched_list}</td>
+        </tr>"""
+
+    rows_html = "".join(match_row(r) for r in results)
+
+    tat_pct = (tat_matched / tat_total * 100) if tat_total else 0.0
+    tat_unmatched_html = (
+        "<ul>" + "".join(f"<li>{html.escape(v)}</li>" for v in tat_unmatched) + "</ul>"
+        if tat_unmatched
+        else "<em>none</em>"
+    )
+
+    return f"""<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Province matching report</title>
+<style>
+  body {{ font-family: 'Tahoma', 'Noto Sans Thai', sans-serif; margin: 2rem; color: #1a1a1a; }}
+  h1 {{ font-size: 1.4rem; }}
+  table {{ border-collapse: collapse; width: 100%; margin: 1rem 0; }}
+  th, td {{ border: 1px solid #ccc; padding: 0.5rem; text-align: left; vertical-align: top; }}
+  th {{ background: #f0f0f0; }}
+  tr.warn {{ background: #fff3cd; }}
+  tr.ok {{ background: #eafbea; }}
+  section {{ margin-bottom: 2rem; }}
+  code {{ background: #f5f5f5; padding: 0.1rem 0.3rem; }}
+</style>
+</head>
+<body>
+<h1>Province matching report</h1>
+<p>Master dimension: <code>config/province_master.csv</code>, {master_count} provinces.
+Generated by <code>scripts/build_province_matching_report.py</code>.</p>
+
+<section>
+<h2>Name-based sources (normalize_province)</h2>
+<table>
+  <tr>
+    <th>Source</th><th>Distinct values</th><th>Matched</th>
+    <th>Match rate</th><th>Unmatched values</th>
+  </tr>
+  {rows_html}
+</table>
+</section>
+
+<section>
+<h2>tat_tourist_attractions.json (ID-based crosswalk)</h2>
+<p>This file has no province name field -- only <code>ATT_PROVINCE_ID</code>
+("1001".."1077", TAT's own internal numbering, unrelated to the standard
+geocode every other source uses). It is matched via
+<code>config/mappings/tat_province_id_crosswalk.csv</code>
+(see <code>scripts/build_tat_province_crosswalk.py</code> for how it was built)
+rather than <code>normalize_province</code>.</p>
+<table>
+  <tr>
+    <th>Source</th><th>Distinct values</th><th>Matched</th>
+    <th>Match rate</th><th>Unmatched values</th>
+  </tr>
+  <tr class="{"ok" if tat_pct >= 99 else "warn"}">
+    <td>tat_tourist_attractions.json</td>
+    <td>{tat_total}</td>
+    <td>{tat_matched}</td>
+    <td>{tat_pct:.1f}%</td>
+    <td>{tat_unmatched_html}</td>
+  </tr>
+</table>
+<h3>What is TAT's 78th value?</h3>
+<p>77 of the 78 distinct <code>ATT_PROVINCE_ID</code> values follow the
+"10XX" pattern and were matched to a real province (75 via the mode of each
+id's records' postal-code prefix, cross-validated against the standard
+geocode; the remaining 2 -- <code>1005</code> and <code>1045</code> -- had no
+usable postcode anywhere in their records and were hand-identified by
+searching their attraction names, resolving to Kamphaeng Phet and Yasothon
+respectively). <strong>The 78th value is the literal string
+<code>"1"</code></strong> (13 records). Its record names are junk/placeholder
+data -- <code>"test"</code>, <code>"test 13120844"</code>,
+<code>"Hello world!"</code> (three times) -- not a real 78th province. It
+reads as an unset/default <code>province_id</code> sentinel in the source
+system, a data-quality defect rather than a geography, and is excluded from
+the crosswalk.</p>
+</section>
+
+<section>
+<h2>What are flood's 2 missing provinces?</h2>
+<p><code>thailand_flood_risk_areas.csv</code> has rows for 75 of the 77
+provinces. Diffing its (prefix-stripped) province list against the master
+shows the 2 entirely absent provinces are <strong>Phuket (ภูเก็ต)</strong>
+and <strong>Ranong (ระนอง)</strong> -- there is not a single row, for any
+tambon, in either province, across all 17 years the file covers. This isn't
+a spelling mismatch (every other province matches exactly once its "จ."
+prefix is stripped; Bangkok is the one province stored without that prefix)
+-- the source simply has no flood-history data for these two provinces.
+Documented as a coverage gap in the source, not corrected: any dashboard
+metric derived from this file should show these two provinces as
+"no data," not "zero risk."</p>
+</section>
+
+<section>
+<h2>Not applicable</h2>
+<p><code>car_registered_new_2565_2569_combined.csv</code> is a national-level
+monthly series (no province breakdown) and has no province column to match.</p>
+</section>
+
+</body>
+</html>
+"""
+
+
+def main() -> int:
+    configure_logging()
+    master_count = load_master_province_count()
+
+    results = []
+    for source_name, filename, column in NAME_BASED_SOURCES:
+        values = load_column_values(filename, column)
+        result = match_province_values(source_name, values)
+        results.append(result)
+        log.info(
+            "province_match_computed",
+            source=source_name,
+            match_rate=round(result.match_rate, 4),
+            unmatched=len(result.unmatched_values),
+        )
+
+    tat_matched, tat_total, tat_unmatched = tat_crosswalk_summary()
+    log.info(
+        "tat_crosswalk_summary",
+        matched=tat_matched,
+        total=tat_total,
+        unmatched=tat_unmatched,
+    )
+
+    report_html = render_html(results, tat_matched, tat_total, tat_unmatched, master_count)
+    out_path = settings.reports_dir / "province_matching_report.html"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(report_html, encoding="utf-8")
+    log.info("province_matching_report_written", path=str(out_path))
+
+    below_threshold = [r for r in results if r.match_rate < 0.99]
+    if below_threshold:
+        for r in below_threshold:
+            log.warning(
+                "source_below_99pct_match",
+                source=r.source_name,
+                match_rate=round(r.match_rate, 4),
+            )
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
