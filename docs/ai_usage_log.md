@@ -207,3 +207,72 @@ knowledge and looked plausible without ever being wrong in an obviously
 checkable way; sourcing it and reconciling it against the real data (77 in,
 77 out, no leftovers) is what makes it trustworthy rather than merely
 confident-sounding.
+
+---
+
+## 2026-08-12 — TAT crosswalk had a real bug; found by an independent check the owner asked for
+
+**Phase / task:** Phase 1, Task 3 follow-up
+(`scripts/build_tat_province_crosswalk.py`, `scripts/validate_tat_crosswalk.py`)
+
+**What was asked:** the project owner asked for the TAT crosswalk to be
+checked specifically against the Bangkok/Samut Prakan pair — Samut Prakan's
+real postcodes (10270, 10280, 10290, 10540, 10560, 10570) fall inside
+Bangkok's 10xxx postal block, which breaks any method assuming a postcode's
+leading digits equal the province code — and then validated independently
+(attraction-count plausibility, a total-record reconciliation, and 5 named
+spot-checks), explicitly *not* with more postcode logic.
+
+**What was found:** the original crosswalk (built from the leading 2 digits
+of each `ATT_PROVINCE_ID`'s postcodes) had exactly the bug the owner
+predicted, and it cascaded: `ATT_PROVINCE_ID` 1001 and 1059 both resolved to
+Bangkok, while Saraburi ended up with no id mapped to it at all. Because
+Samut Prakan has no postal block of its own, every province from Samut
+Prakan through Saraburi (geocodes 11-19: Samut Prakan, Nonthaburi, Pathum
+Thani, Ayutthaya, Ang Thong, Lopburi, Sing Buri, Chai Nat, Saraburi) had its
+postcode prefix shifted one behind its actual geocode. This was found by
+checking for duplicate `province_id` assignments across the crosswalk output
+— a check with no postcode logic in it at all, just "does any province get
+claimed twice."
+
+**Fix:** rebuilt the crosswalk against a real postcode→province reference
+(kongvut/thai-province-data, an open, actively-maintained dataset — spot
+checked against known facts, e.g. Ayutthaya postcode 13000, Ang Thong
+14000, before trusting it) instead of assuming a 2-digit prefix equals the
+geocode. All 77 provinces now resolve to exactly one `ATT_PROVINCE_ID` with
+zero duplicates and zero gaps.
+
+**Independent validation (all passed after the fix):**
+- Record count reconciles exactly: 1,718 matched + 13 junk = 1,731, the
+  file's real total.
+- 5 named landmarks (Yaowarat, Doi Suthep, Phi Phi Islands, an
+  Ayutthaya-named attraction, Patong Beach) all resolve to the correct
+  province. Notable miss during this check: Wat Phra Kaew / the Grand
+  Palace isn't in the dataset under any name tried — logged as a coverage
+  observation about the source, not a crosswalk defect.
+- Top 10 / bottom 10 attraction counts by province are broadly plausible
+  (Chiang Mai #1 at 256; small interior provinces at the bottom), with one
+  numbers-worth-eyeballing flag: Prachuap Khiri Khan is #2 at 107, ahead of
+  both Bangkok (47) and Phuket (50) — reported as-is rather than adjusted,
+  since every id in the affected block was independently re-verified and
+  the number is plausibly just uneven submission volume across TAT's
+  regional offices, not a mis-mapping.
+
+Added `tests/unit/test_tat_crosswalk.py` as a permanent regression guard
+(no two `ATT_PROVINCE_ID`s may resolve to the same province; every one of
+the 77 provinces must have exactly one).
+
+**Also quantified per the owner's request:** 13 of 1,731 TAT records (0.75%)
+carry the junk `"1"` province value, with record names literally including
+`"test"` and `"Hello world!"` — now stated explicitly in
+`reports/province_matching_report.html` as a concrete data-quality example.
+
+**Why this matters for the assignment:** this is the clearest example yet of
+why "validate independently, not by re-running the same method" matters —
+the postcode-mode heuristic was internally confident (every affected id had
+a >90% consistent postcode-prefix mode) while being systematically wrong.
+Only a check with a different failure mode (duplicate/missing province
+detection, then separately, spot-checks by name) could catch it. The bug
+would have silently misattributed Samut Prakan's, Nonthaburi's, and seven
+other provinces' entire attraction-density signal to their geocode
+neighbor — directly relevant to BQ4 (tourism-dense province risk profile).

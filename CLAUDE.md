@@ -199,6 +199,20 @@ Use committed mapping tables. **Never rely on automatic fuzzy matching alone** �
 Accidents `ลพบุรี` · flood `จ.นนทบุรี` (prefix) · R35mm `Bangkok` (English) · registration `กระบี่`
 Province counts: accidents 77 ✅ · rainfall 77 ✅ · registration 77 ✅ · **flood 75** ❌ · **TAT 78** ❌
 
+**Resolved in Phase 1 Task 3** (`config/mappings/`, `reports/province_matching_report.html`):
+- **Flood's missing 2** are Phuket and Ranong — not a spelling issue, the file has zero rows for
+  either province across all 17 years. Flood risk here is river-basin derived; Phuket is an island
+  with no major basin, Ranong is a narrow coastal strip against mountains — neither has terrain
+  meeting this file's definition, but both have real flash-flood risk (Ranong is Thailand's wettest
+  province). **Locked-down rule for Phase 3 `dim_geography`:** these two must map to the Unknown
+  Member (`sk = -1`) for every flood attribute — never impute 0, never classify as low risk. Add a
+  `flood_data_available` boolean so the dashboard shows this honestly. Phuket is a major tourism
+  province, so this directly affects BQ2 and BQ4 if skipped.
+- **TAT's 78th value** is the literal string `"1"` (13 of 1,731 records, 0.75%) — junk/placeholder
+  data (`"test"`, `"Hello world!"` ×3), not a real province. TAT also has no province *name* field
+  at all, only its own internal `ATT_PROVINCE_ID` numbering (unrelated to the standard geocode) —
+  crosswalked via `config/mappings/tat_province_id_crosswalk.csv`.
+
 ### 🟡 P7 — Remaining
 | Problem | Evidence | Fix |
 |---|---|---|

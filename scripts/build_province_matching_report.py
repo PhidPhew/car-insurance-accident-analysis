@@ -83,12 +83,51 @@ def tat_crosswalk_summary() -> tuple[int, int, list[str]]:
     return len(matched_pids), len(all_pids), unmatched
 
 
+TatAttractionCountsSummary = tuple[int, int, list[tuple[str, int]], list[tuple[str, int]]]
+
+
+def tat_attraction_counts_summary() -> TatAttractionCountsSummary:
+    """Returns (junk_count, total_records, top_10_by_province, bottom_10_by_province)."""
+    crosswalk_path = settings.mappings_dir / "tat_province_id_crosswalk.csv"
+    with crosswalk_path.open(encoding="utf-8-sig", newline="") as f:
+        pid_to_province_id = {
+            row["att_province_id"]: row["province_id"] for row in csv.DictReader(f)
+        }
+
+    master_path = settings.config_dir / "province_master.csv"
+    with master_path.open(encoding="utf-8-sig", newline="") as f:
+        province_names = {row["province_id"]: row["province_th"] for row in csv.DictReader(f)}
+
+    tat_path = settings.raw_dir / "tat_tourist_attractions.json"
+    with tat_path.open(encoding="utf-8-sig") as f:
+        records: list[dict[str, Any]] = json.load(f)
+
+    junk_count = 0
+    counts: dict[str, int] = {}
+    for record in records:
+        pid = record.get("ATT_PROVINCE_ID", "").strip()
+        if pid == "1":
+            junk_count += 1
+            continue
+        province_id = pid_to_province_id.get(pid)
+        if province_id:
+            name = province_names[province_id]
+            counts[name] = counts.get(name, 0) + 1
+
+    ranked = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)
+    return junk_count, len(records), ranked[:10], ranked[-10:]
+
+
 def render_html(
     results: list[ProvinceMatchResult],
     tat_matched: int,
     tat_total: int,
     tat_unmatched: list[str],
     master_count: int,
+    tat_junk_count: int,
+    tat_total_records: int,
+    tat_top10: list[tuple[str, int]],
+    tat_bottom10: list[tuple[str, int]],
 ) -> str:
     def match_row(r: ProvinceMatchResult) -> str:
         pct = r.match_rate * 100
@@ -170,20 +209,77 @@ rather than <code>normalize_province</code>.</p>
     <td>{tat_unmatched_html}</td>
   </tr>
 </table>
+
+<h3>A methodology bug was caught and fixed here</h3>
+<p>The first version of this crosswalk matched each <code>ATT_PROVINCE_ID</code>
+to a province via the leading <strong>2 digits</strong> of its records'
+postcodes, assuming that prefix equals the province geocode. That assumption
+silently breaks for Bangkok/Samut Prakan: Samut Prakan has no postal block of
+its own -- its real postcodes (10270, 10280, 10290, 10540, 10560, ...) fall
+<em>inside</em> Bangkok's 10xxx block -- which shifted every subsequent
+province's postcode prefix one behind its geocode across the entire
+Bangkok-Samut Prakan-Nonthaburi-Pathum Thani-Ayutthaya-Ang Thong-Lopburi-
+Sing Buri-Chai Nat-Saraburi block (geocodes 10-19). The result was two
+different <code>ATT_PROVINCE_ID</code>s both resolving to Bangkok, and
+Saraburi ending up with no id mapped to it at all. Caught by checking for
+duplicate <code>province_id</code> assignments across the crosswalk (there
+should never be two), not by re-running more postcode logic. Fixed by
+resolving each postcode against a real postcode&rarr;province reference
+table (kongvut/thai-province-data) instead of assuming a prefix match, then
+re-validated: every one of the 77 provinces now has exactly one
+<code>ATT_PROVINCE_ID</code> mapped to it, with zero duplicates. See
+<code>tests/unit/test_tat_crosswalk.py</code> for the regression guard and
+<code>scripts/validate_tat_crosswalk.py</code> for the independent
+validation below.</p>
+
+<h3>Independent validation (not more postcode logic)</h3>
+<ul>
+<li><strong>Record count reconciles exactly:</strong> {tat_matched} matched
++ {tat_junk_count} junk = {tat_total_records}, the file's real total row
+count.</li>
+<li><strong>5 well-known attractions spot-checked by name</strong> all
+resolve to the expected province (Yaowarat &rarr; Bangkok, Doi Suthep
+&rarr; Chiang Mai, Phi Phi Islands &rarr; Krabi, an Ayutthaya-named
+attraction &rarr; Ayutthaya, Patong Beach &rarr; Phuket). Note: Wat Phra
+Kaew / the Grand Palace -- arguably Thailand's single most famous
+attraction -- is not in this dataset under any name variant tried, nor are
+Wat Arun or Chatuchak Market; this file reads as a tourism-<em>service</em>
+directory (spas, farms, boathouses) more than a comprehensive monuments
+list, a coverage observation worth keeping in mind for any attraction
+-density metric built on it.</li>
+<li><strong>Attraction counts per province</strong> (top 10 / bottom 10
+below) are broadly plausible -- Chiang Mai is a clear #1 (256), small
+interior provinces sit at the bottom (Amnat Charoen, Ang Thong: 1 each) --
+though Prachuap Khiri Khan's #2 (107, ahead of Bangkok's 47 and Phuket's 50)
+is higher than tourism volume alone would suggest and likely reflects
+uneven submission activity by province across TAT's regional offices
+feeding this open-data set, not a crosswalk error (every id in the 10-19
+block, including Prachuap Khiri Khan's, was independently verified above).</li>
+</ul>
+<table>
+  <tr><th>Top 10 by attraction count</th><th>Bottom 10 by attraction count</th></tr>
+  <tr>
+    <td><ol>{"".join(f"<li>{html.escape(p)}: {c}</li>" for p, c in tat_top10)}</ol></td>
+    <td><ol>{"".join(f"<li>{html.escape(p)}: {c}</li>" for p, c in tat_bottom10)}</ol></td>
+  </tr>
+</table>
+
 <h3>What is TAT's 78th value?</h3>
 <p>77 of the 78 distinct <code>ATT_PROVINCE_ID</code> values follow the
-"10XX" pattern and were matched to a real province (75 via the mode of each
-id's records' postal-code prefix, cross-validated against the standard
-geocode; the remaining 2 -- <code>1005</code> and <code>1045</code> -- had no
-usable postcode anywhere in their records and were hand-identified by
-searching their attraction names, resolving to Kamphaeng Phet and Yasothon
-respectively). <strong>The 78th value is the literal string
-<code>"1"</code></strong> (13 records). Its record names are junk/placeholder
-data -- <code>"test"</code>, <code>"test 13120844"</code>,
-<code>"Hello world!"</code> (three times) -- not a real 78th province. It
-reads as an unset/default <code>province_id</code> sentinel in the source
-system, a data-quality defect rather than a geography, and is excluded from
-the crosswalk.</p>
+"10XX" pattern and were matched to a real province via a real
+postcode&rarr;province reference (75 automatically; the remaining 2 --
+<code>1005</code> and <code>1045</code> -- had no usable postcode anywhere
+in their records and were hand-identified by searching their attraction
+names, resolving to Kamphaeng Phet and Yasothon respectively).
+<strong>The 78th value is the literal string <code>"1"</code></strong>,
+attached to <strong>{tat_junk_count} of the file's {tat_total_records}
+records ({tat_junk_count / tat_total_records * 100:.2f}%)</strong>. Their
+names are junk/placeholder data -- <code>"test"</code>,
+<code>"test 13120844"</code>, <code>"Hello world!"</code> (three times) --
+not a real 78th province. It reads as an unset/default
+<code>province_id</code> sentinel in the source system, a concrete
+data-quality defect in a government open-data file, and is excluded from
+the crosswalk rather than assigned anywhere.</p>
 </section>
 
 <section>
@@ -194,11 +290,24 @@ shows the 2 entirely absent provinces are <strong>Phuket (ภูเก็ต)</s
 and <strong>Ranong (ระนอง)</strong> -- there is not a single row, for any
 tambon, in either province, across all 17 years the file covers. This isn't
 a spelling mismatch (every other province matches exactly once its "จ."
-prefix is stripped; Bangkok is the one province stored without that prefix)
--- the source simply has no flood-history data for these two provinces.
-Documented as a coverage gap in the source, not corrected: any dashboard
-metric derived from this file should show these two provinces as
-"no data," not "zero risk."</p>
+prefix is stripped; Bangkok is the one province stored without that prefix).</p>
+<p><strong>Why they're absent, and why that's not the same as "zero
+risk":</strong> this file measures <em>recurrent floodplain risk</em>, which
+is river-basin derived. Phuket is an island with no major river basin;
+Ranong is a narrow coastal strip pinned against mountains. Neither has
+areas that meet this file's definition of flood-risk terrain -- but both
+experience real flash flooding, and Ranong is the wettest province in
+Thailand. Treating their absence as "0 risk" would tell any model built on
+this data that they are safe, when the honest statement is "unmeasured by
+this method."</p>
+<p><strong>Business rule for dim_geography (Phase 3):</strong> Phuket and
+Ranong must map to the <strong>Unknown Member (sk = -1)</strong> for every
+flood attribute sourced from this file -- never imputed as 0, never
+classified as low risk. A <code>flood_data_available</code> boolean column
+should accompany the flood attributes so the dashboard can show this
+distinction honestly rather than silently. Phuket in particular is a major
+tourism province, so this directly affects BQ2 (rain/flood premium loading)
+and BQ4 (tourism-dense province risk profile) if not handled this way.</p>
 </section>
 
 <section>
@@ -235,8 +344,26 @@ def main() -> int:
         total=tat_total,
         unmatched=tat_unmatched,
     )
+    tat_junk_count, tat_total_records, tat_top10, tat_bottom10 = tat_attraction_counts_summary()
+    log.info(
+        "tat_attraction_counts_summary",
+        junk_count=tat_junk_count,
+        total_records=tat_total_records,
+        top10=tat_top10,
+        bottom10=tat_bottom10,
+    )
 
-    report_html = render_html(results, tat_matched, tat_total, tat_unmatched, master_count)
+    report_html = render_html(
+        results,
+        tat_matched,
+        tat_total,
+        tat_unmatched,
+        master_count,
+        tat_junk_count,
+        tat_total_records,
+        tat_top10,
+        tat_bottom10,
+    )
     out_path = settings.reports_dir / "province_matching_report.html"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(report_html, encoding="utf-8")

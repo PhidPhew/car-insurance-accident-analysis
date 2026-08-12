@@ -11,24 +11,35 @@ dimension at all.
 
 CLAUDE.md Task 3 says TAT has 78 distinct province values against Thailand's
 77 provinces and asks what the 78th one actually is. Investigation (see
-docs/ai_usage_log.md):
+docs/ai_usage_log.md for the full account, including a methodology
+correction after the first version of this script shipped a real bug):
 
-- 77 of the 78 distinct ATT_PROVINCE_ID values follow the "10XX" pattern.
-  Thai postal codes' first two digits closely mirror the standard province
-  geocode for most provinces (verified: postcode 81xxx co-occurs with
-  ATT_PROVINCE_ID 1002, and geocode 81 = Krabi; postcode 71xxx co-occurs with
-  1003, and geocode 71 = Kanchanaburi; etc.) so each "10XX" id was mapped to
-  a province via the *mode* of its records' ATT_POSTCODE prefix. This
-  resolved 75 of the 77 "10XX" ids outright. The remaining 2 ids
-  (1005, 1045) had no records with a usable postcode; their two example
-  records' ATT_LOCATION coordinates and ATT_NAME_TH were identified by name
-  via web search (Wat Nong Pling -> Kamphaeng Phet; Nam Tok Nang Non,
-  Kudchum district -> Yasothon) and hand-confirmed.
+- 77 of the 78 distinct ATT_PROVINCE_ID values follow the "10XX" pattern and
+  are matched to a province via the *mode* of their records' ATT_POSTCODE,
+  resolved through a real postcode->province lookup table (see
+  `fetch_postcode_to_province`) rather than assuming a postcode's leading
+  2 digits equal the province geocode. That assumption is wrong for
+  Bangkok/Samut Prakan/Nonthaburi/Pathum Thani/Ayutthaya/Ang Thong/Lopburi/
+  Sing Buri/Chai Nat/Saraburi (geocodes 10-19): Samut Prakan has no leading
+  postal digit of its own -- its postcodes (10270, 10280, 10290, 10540,
+  10560, ...) fall inside Bangkok's 10xxx block -- which shifts every
+  subsequent province's postcode prefix one behind its geocode across that
+  entire block. A full-postcode lookup avoids this; a 2-digit prefix does
+  not.
+- The 2 ids with no usable postcode anywhere in their records (1005, 1045)
+  were hand-identified by web-searching their attraction names (Wat Nong
+  Pling -> Kamphaeng Phet; Nam Tok Nang Non, Kudchum district -> Yasothon).
 - The 78th value is the literal string "1" (13 records). Its record names
   are junk/placeholder data ("test", "test 13120844", "Hello world!" x3),
-  not a real 78th province -- this is a data-quality defect in the source
-  (an unset/default province_id sentinel), not a geography. It is excluded
+  not a real 78th province -- a data-quality defect in the source (an
+  unset/default province_id sentinel), not a geography. It is excluded
   from this crosswalk and reported as unmatched.
+
+Independent validation (not more postcode logic, per the project owner's
+explicit instruction) lives in scripts/validate_tat_crosswalk.py: attraction
+counts per province must look plausible, must sum to exactly 1,731 across
+all provinces plus the excluded junk bucket, and 5 well-known attractions
+are spot-checked by name.
 """
 
 from __future__ import annotations
@@ -40,6 +51,8 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
+import requests
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from config.settings import settings  # noqa: E402
@@ -49,6 +62,15 @@ log = get_logger(__name__)
 
 JUNK_PROVINCE_ID = "1"
 
+# kongvut/thai-province-data: an open, actively-maintained dataset of Thai
+# provinces/districts/subdistricts with postal codes, cross-checked against
+# known facts before trusting it (Ayutthaya=13000, Ang Thong=14000, Bangkok
+# 10200 vs. Samut Prakan 10270/10280/10290/10540/10560 all confirmed
+# correct -- see docs/ai_usage_log.md).
+THAI_PROVINCE_DATA_BASE = (
+    "https://raw.githubusercontent.com/kongvut/thai-province-data/master/data/raw"
+)
+
 # The 2 ids with no usable postcode data anywhere in their records -- hand
 # resolved via web search on their attraction names (see module docstring).
 MANUAL_OVERRIDES: dict[str, str] = {
@@ -57,10 +79,33 @@ MANUAL_OVERRIDES: dict[str, str] = {
 }
 
 
-def load_master_codes() -> set[str]:
+def fetch_postcode_to_province(timeout: float = 20.0) -> dict[str, set[str]]:
+    """Fetch a real Thai postcode -> province_th lookup (see module docstring for source)."""
+    provinces_resp = requests.get(f"{THAI_PROVINCE_DATA_BASE}/provinces.json", timeout=timeout)
+    provinces_resp.raise_for_status()
+    districts_resp = requests.get(f"{THAI_PROVINCE_DATA_BASE}/districts.json", timeout=timeout)
+    districts_resp.raise_for_status()
+    subdistricts_resp = requests.get(
+        f"{THAI_PROVINCE_DATA_BASE}/sub_districts.json", timeout=timeout
+    )
+    subdistricts_resp.raise_for_status()
+
+    province_name_by_id = {p["id"]: p["name_th"] for p in provinces_resp.json()}
+    province_id_by_district = {d["id"]: d["province_id"] for d in districts_resp.json()}
+
+    postcode_to_province: dict[str, set[str]] = defaultdict(set)
+    for sub in subdistricts_resp.json():
+        province_id = province_id_by_district.get(sub["district_id"])
+        if province_id is None:
+            continue
+        postcode_to_province[str(sub["zip_code"])].add(province_name_by_id[province_id])
+    return postcode_to_province
+
+
+def load_master_th_to_id() -> dict[str, str]:
     path = settings.config_dir / "province_master.csv"
     with path.open(encoding="utf-8-sig", newline="") as f:
-        return {row["province_id"] for row in csv.DictReader(f)}
+        return {row["province_th"]: row["province_id"] for row in csv.DictReader(f)}
 
 
 def load_tat_records() -> list[dict[str, Any]]:
@@ -70,8 +115,12 @@ def load_tat_records() -> list[dict[str, Any]]:
         return result
 
 
-def build_crosswalk(records: list[dict[str, Any]], master_codes: set[str]) -> list[dict[str, str]]:
-    by_pid_postcodes: dict[str, list[str]] = defaultdict(list)
+def build_crosswalk(
+    records: list[dict[str, Any]],
+    postcode_to_province: dict[str, set[str]],
+    master_th_to_id: dict[str, str],
+) -> list[dict[str, str]]:
+    by_pid_provinces: dict[str, list[str]] = defaultdict(list)
     all_pids: set[str] = set()
     for record in records:
         pid = record.get("ATT_PROVINCE_ID", "").strip()
@@ -79,8 +128,9 @@ def build_crosswalk(records: list[dict[str, Any]], master_codes: set[str]) -> li
             continue
         all_pids.add(pid)
         postcode = record.get("ATT_POSTCODE", "").strip()
-        if postcode.isdigit() and len(postcode) >= 2:
-            by_pid_postcodes[pid].append(postcode[:2])
+        provinces = postcode_to_province.get(postcode)
+        if provinces and len(provinces) == 1:
+            by_pid_provinces[pid].append(next(iter(provinces)))
 
     rows: list[dict[str, str]] = []
     for pid in sorted(all_pids):
@@ -96,20 +146,21 @@ def build_crosswalk(records: list[dict[str, Any]], master_codes: set[str]) -> li
             )
             continue
 
-        postcodes = by_pid_postcodes.get(pid, [])
-        if not postcodes:
+        resolved_provinces = by_pid_provinces.get(pid, [])
+        if not resolved_provinces:
             log.warning("tat_pid_unmatched_no_postcode", att_province_id=pid)
             continue
 
-        mode_code, mode_count = Counter(postcodes).most_common(1)[0]
-        if mode_code not in master_codes:
+        mode_province_th, mode_count = Counter(resolved_provinces).most_common(1)[0]
+        province_id = master_th_to_id.get(mode_province_th)
+        if province_id is None:
             log.warning(
-                "tat_pid_postcode_not_a_valid_geocode",
+                "tat_pid_resolved_province_not_in_master",
                 att_province_id=pid,
-                mode_code=mode_code,
+                resolved_province=mode_province_th,
             )
             continue
-        confidence = mode_count / len(postcodes)
+        confidence = mode_count / len(resolved_provinces)
         if confidence < 0.7:
             log.warning(
                 "tat_pid_ambiguous_postcode_mode",
@@ -119,8 +170,8 @@ def build_crosswalk(records: list[dict[str, Any]], master_codes: set[str]) -> li
         rows.append(
             {
                 "att_province_id": pid,
-                "province_id": mode_code,
-                "matched_via": "postcode_mode",
+                "province_id": province_id,
+                "matched_via": "postcode_lookup",
             }
         )
     return rows
@@ -128,14 +179,26 @@ def build_crosswalk(records: list[dict[str, Any]], master_codes: set[str]) -> li
 
 def main() -> int:
     configure_logging()
-    master_codes = load_master_codes()
+    master_th_to_id = load_master_th_to_id()
     records = load_tat_records()
-    rows = build_crosswalk(records, master_codes)
+    postcode_to_province = fetch_postcode_to_province()
+    log.info("postcode_reference_fetched", distinct_postcodes=len(postcode_to_province))
+
+    rows = build_crosswalk(records, postcode_to_province, master_th_to_id)
+
+    province_id_counts = Counter(r["province_id"] for r in rows)
+    duplicates = {pid: count for pid, count in province_id_counts.items() if count > 1}
+    missing = sorted(set(master_th_to_id.values()) - set(province_id_counts))
+    if duplicates:
+        log.error("tat_crosswalk_has_duplicate_province_id", duplicates=duplicates)
+    if missing:
+        log.error("tat_crosswalk_missing_province_ids", missing=missing)
 
     out_path = settings.mappings_dir / "tat_province_id_crosswalk.csv"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", encoding="utf-8-sig", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["att_province_id", "province_id", "matched_via"])
+        fieldnames = ["att_province_id", "province_id", "matched_via"]
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
 
@@ -146,8 +209,8 @@ def main() -> int:
         expected=77,
         junk_excluded=JUNK_PROVINCE_ID,
     )
-    if len(rows) != 77:
-        log.error("tat_crosswalk_incomplete", rows=len(rows), expected=77)
+    if len(rows) != 77 or duplicates or missing:
+        log.error("tat_crosswalk_incomplete_or_inconsistent", rows=len(rows), expected=77)
         return 1
     return 0
 
