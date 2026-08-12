@@ -16,6 +16,7 @@ repos:
           - types-requests
           - structlog
           - pytest
+          - holidays
         pass_filenames: false
         args: []
 

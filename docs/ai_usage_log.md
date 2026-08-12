@@ -46,3 +46,44 @@ behavior. This is also the reason `scripts/make_fixtures.py` computes the
 out-of-bounds row set dynamically from the source file at generation time
 rather than hard-coding either 15 or 10 — the fixture stays correct even
 if the source file changes.
+
+---
+
+## 2026-08-12 — Task 2 holiday backfill: a validation rule and a data source both needed a second look
+
+**Phase / task:** Phase 1, Task 2 (`src/rri/io/holidays.py`, `scripts/backfill_holidays.py`)
+
+**Finding 1 — the "Songkran must be 13-15 April" validation is wrong for 2020.**
+Task 2's spec says to sanity-check that Songkran falls on 13-15 April every
+year, "if not, the fetch is wrong." Fetching 2020 via the `holidays`
+Python package showed April 13-15, 2020 were *not* public holidays that
+year. This is real history, not a bug: the Thai government postponed
+Songkran nationwide by Cabinet Resolution due to COVID-19 and rescheduled
+substitute holidays to 27 Jul and 4/7 Sep 2020. Verified against the
+package's own "(in lieu)" entries for those dates before accepting it.
+Reported to the project owner rather than silently forcing fake April
+dates into the data to satisfy the validation rule, or silently treating
+the honest historical result as a "fetch failure." Resolution (owner
+confirmed): keep the real 2020 data; the validation now special-cases
+2020 as a documented exception (`KNOWN_SONGKRAN_EXCEPTIONS` in
+`src/rri/io/holidays.py`) instead of a hard failure.
+
+**Finding 2 — the `holidays` package's "public" category is broader than
+what `public_holidays_all.json` actually represents.** Cross-checking
+freshly-fetched 2025-2026 dates against the real DGA-sourced file (a
+validation step Task 2 explicitly asks for) showed the package includes
+National Children's Day and National Labor Day, which the real government
+file does not — those are private-sector/observance days, not part of the
+government-office holiday calendar the real file tracks. Left unfixed,
+2019-2024 would have used a different, broader definition of "public
+holiday" than 2025-2026, which would silently corrupt any year-over-year
+comparison built on top of it later (e.g. BQ3's holiday-period case-count
+analysis). Resolution (owner confirmed): exclude these two categories from
+the backfill so all 8 years share one consistent scope.
+
+**Why this matters for the assignment:** both findings came from actually
+running the documented validation checks against real fetched data instead
+of assuming the fetch was either "correct" or "wrong" at face value — the
+first was a validation rule that needed an exception, the second was a
+source that needed narrowing. Neither would have surfaced without the
+cross-source and historical sanity checks Task 2 asked for.

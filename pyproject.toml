@@ -18,6 +18,7 @@ dependencies = [
     "pydantic-settings>=2.5",
     "python-dateutil>=2.9",
     "requests>=2.32",
+    "holidays>=0.102",
 ]
 
 [dependency-groups]
@@ -60,7 +61,7 @@ explicit_package_bases = true
 files = ["src/rri", "config", "tests", "scripts"]
 
 [[tool.mypy.overrides]]
-module = ["pandera.*", "duckdb.*"]
+module = ["pandera.*", "duckdb.*", "holidays.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
