@@ -39,9 +39,9 @@ class TestTatCrosswalkIntegrity:
         rows = _load_crosswalk()
         counts = Counter(r["province_id"] for r in rows)
         duplicates = {pid: n for pid, n in counts.items() if n > 1}
-        assert (
-            duplicates == {}
-        ), f"province_id assigned to more than one ATT_PROVINCE_ID: {duplicates}"
+        assert duplicates == {}, (
+            f"province_id assigned to more than one ATT_PROVINCE_ID: {duplicates}"
+        )
 
     def test_every_master_province_has_exactly_one_att_province_id(self) -> None:
         rows = _load_crosswalk()

@@ -276,3 +276,45 @@ detection, then separately, spot-checks by name) could catch it. The bug
 would have silently misattributed Samut Prakan's, Nonthaburi's, and seven
 other provinces' entire attraction-density signal to their geocode
 neighbor — directly relevant to BQ4 (tourism-dense province risk profile).
+
+---
+
+## 2026-08-12 — Task 4 profiling found P5's stated root cause is wrong
+
+**Phase / task:** Phase 1, Task 4 (`src/rri/utils/profiling.py`,
+`notebooks/01_data_profiling.ipynb`)
+
+CLAUDE.md P5 said duplicate `ACC_CODE` values happen because the code is
+reused **across different years**, and that the real key is therefore
+`(ACC_CODE, year)`. Profiling this directly (grouping by `ACC_CODE` alone
+vs. by `(ACC_CODE, year)`) showed **both produce the identical 1,641
+duplicate groups** — meaning zero `ACC_CODE` values actually span more than
+one year, and the composite key doesn't resolve the duplication at all.
+Random-sampling 5 duplicate groups (seed 42) showed what's actually
+happening: rows share `ACC_CODE`, year, province, road, KM, and date/time
+exactly, but disagree on the free-text description columns
+(`บริเวณที่เกิดเหตุ`, `ลักษณะการเกิดเหตุ`, `มูลเหตุสันนิษฐาน` — populated on
+one row, null or differently worded on another). This is the same
+real-world accident entered more than once with inconsistent
+characterization, not a key-design problem. Updated CLAUDE.md P5 with the
+correction rather than leaving the disproven explanation in place; the
+"1,702 duplicate ACC_CODE" number itself was correct (it's the excess-row
+count, 3,343 total rows in duplicate groups minus 1,641 groups), only the
+proposed cause and fix were wrong.
+
+Two smaller findings from the same profiling pass, also added to CLAUDE.md:
+P3's 5th twin-column pair (`บริเวณที่เกิดเหตุ` / `บริเวณที่เกิดเหตุอื่น`) is
+not cleanly mutually exclusive like the other 4 — both are populated
+simultaneously on 7,606 rows (4.7%), so it needs a precedence rule, not a
+plain coalesce; and a single row in `accident2020.csv` has an Excel-serial
+date despite the file otherwise being pure MM/DD/YYYY text (immaterial at
+1/161,307 rows, but a concrete example of why the 3-layer safety net is
+row-level, not just file-level).
+
+**Why this matters for the assignment:** this is the deepest correction so
+far because it didn't just fix a number, it invalidated the *proposed fix*
+for a documented problem. A cleaning rule built on "the key is
+`(ACC_CODE, year)`" would have shipped, passed its own logic, and left the
+real duplication (conflicting descriptions of the same accident) completely
+unaddressed — the kind of bug that's invisible until someone asks why two
+rows for the same crash tell different stories.

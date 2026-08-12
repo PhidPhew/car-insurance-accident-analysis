@@ -159,6 +159,12 @@ Fix in this order.
 format to the ambiguous rows in the same file. Excel serials use `origin = 1899-12-30`.
 Verified: no single file mixes DMY and MDY.
 
+**Phase 1 Task 4 found one exception the per-file rule alone would miss:** `accident2020.csv`
+(otherwise pure MM/DD/YYYY text) has exactly 1 row (`ACC_CODE=3810244`) where `วันที่เกิดเหตุ` is an
+Excel serial (`44178` → 2020-12-13, plausible: 2 days before its `วันที่รายงาน` of 12/15/2020). Immaterial
+to the 161,307-row total, but it's the concrete case the 3-layer safety net below exists to catch —
+a blanket per-file format assumption would silently mis-parse this one row.
+
 **Mandatory 3-layer safety net:**
 1. Parsed year **must equal the existing `ปีที่เกิดเหตุ` column** — a single mismatch fails the pipeline
 2. `accident_date ≤ report_date`, and the gap must be ≤ 90 days
@@ -181,6 +187,12 @@ If it parses as a float in [0,1), multiply by 24. `0:00` appears 219 times — m
 ⚠️ **Do not drop these for being >90% null.** They are null *in blocks by source year*, not at
 random — different years used different column names. **Coalesce them.**
 
+**Phase 1 Task 4 verified 4 of these 5 pairs are cleanly mutually exclusive** (zero rows where both
+old and new are populated — safe to coalesce with no precedence decision needed). **The 5th pair is
+not:** `บริเวณที่เกิดเหตุ` and `บริเวณที่เกิดเหตุอื่น` are **both populated on 7,606 rows (4.7%)**
+simultaneously. A plain coalesce needs an explicit precedence rule for this pair (which value wins
+when both are present) — Phase 2 decision, not resolved here.
+
 ### 🟠 P4 — Inconsistent categories
 `มูลเหตุสันนิษฐาน` has 120 distinct values, should collapse to ~20.
 `ลักษณะการเกิดเหตุ` 152 → ~15. `บริเวณที่เกิดเหตุ` 89 → ~12.
@@ -191,9 +203,21 @@ Use committed mapping tables. **Never rely on automatic fuzzy matching alone** �
 
 ### 🟠 P5 — Duplicates
 - 82 fully identical rows → safe to drop
-- 1,702 duplicate `ACC_CODE` → ⚠️ investigate first; across different years the code is reused,
-  so the real key is `(ACC_CODE, year)`
+- 1,702 excess rows from duplicate `ACC_CODE` (1,641 duplicate groups, 3,343 rows total involved,
+  3,343 − 1,641 = 1,702) — numbers verified exactly against Phase 1 Task 4 profiling
 - `ACC_CODE` is null in 17.3% of rows → **cannot be the primary key**; use a surrogate key
+
+⚠️ **Correction (Phase 1 Task 4):** this entry originally said the duplication was cross-year reuse
+and that `(ACC_CODE, year)` is therefore the real key. **Verified false: zero `ACC_CODE` values span
+more than one year.** The composite key does not resolve the duplication at all — grouping by
+`ACC_CODE` alone and by `(ACC_CODE, year)` produce the identical 1,641 duplicate groups. A random
+sample of 5 duplicate groups showed a consistent pattern instead: rows share `ACC_CODE`, year,
+province, road, KM, and date/time exactly, but **disagree on the free-text description columns**
+(`บริเวณที่เกิดเหตุ`, `ลักษณะการเกิดเหตุ`, `มูลเหตุสันนิษฐาน` — sometimes populated on one row and
+null on another, sometimes differently worded). This reads as the same real-world accident entered
+more than once with inconsistent characterization, not a clean key problem — Phase 2 needs a
+row-selection or merge rule (e.g. prefer the row with fewer nulls in the description columns), not
+just a wider key.
 
 ### 🟠 P6 — Province names don't match across sources
 Accidents `ลพบุรี` · flood `จ.นนทบุรี` (prefix) · R35mm `Bangkok` (English) · registration `กระบี่`
