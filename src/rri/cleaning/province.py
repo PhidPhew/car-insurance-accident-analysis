@@ -35,6 +35,15 @@ def _load_canonical_names() -> frozenset[str]:
         return frozenset(row["province_th"].strip() for row in reader)
 
 
+def load_canonical_province_names() -> frozenset[str]:
+    """Public accessor for the 77 canonical `province_th` values (config/province_master.csv).
+
+    Used by data contracts to assert the master list's size and membership
+    rather than re-reading the CSV independently.
+    """
+    return _CANONICAL_NAMES
+
+
 def _load_alias_map() -> dict[str, str]:
     path = settings.mappings_dir / "province_aliases.csv"
     with path.open(encoding="utf-8-sig", newline="") as f:

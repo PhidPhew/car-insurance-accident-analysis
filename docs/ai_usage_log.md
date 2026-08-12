@@ -632,3 +632,59 @@ of the data. The fix wasn't picking a better number from intuition either
 -- it was building the reusable profiling capability to measure the real
 distribution first, the same discipline already applied to every other P1
 claim in CLAUDE.md.
+
+---
+
+## 2026-08-13 — Task 5 data contracts: the schema itself found a new bug
+
+Given specific guidance before starting Task 5: contracts must encode
+facts already proven during profiling, not re-introduce untested
+assumptions the way the 90-day threshold did. Concretely: no date-format
+shape assertion on the accident file (three formats coexist by design);
+assert the things already proven (77 provinces / zero orphans, per-file
+date format matching profiling, the 4 genuine twin-column pairs, both
+reconciliation gates as code constants); and where the raw data is known
+to diverge from a clean expectation, let the pandera check fail and report
+it rather than loosening the schema to pass.
+
+**Followed the letter of the date-column instruction and it immediately
+found something no prior round of profiling had caught.** The schema
+requires `วันที่เกิดเหตุ` and `วันที่รายงาน` to be present and non-null --
+nothing about shape. Running it against the real file: `วันที่เกิดเหตุ`
+(accident date) is never null, as expected, but `วันที่รายงาน` (report
+date) is null in 78 rows (74 in `accident2026.csv`, the still-incomplete
+year; 4 in `accident2023.csv`). This was never in CLAUDE.md P1-P7 --
+every earlier round of profiling had reason to look at accident date
+(the P1 format investigation) but nothing had specifically checked report
+date for nulls. Did not loosen the schema to `nullable=True` to make it
+pass; recorded the 78-row fact in P7 and the CLAUDE.md Task 5 summary
+table instead, per the explicit "the failures are the deliverable"
+instruction.
+
+**The other checks came back exactly as predicted, which is itself the
+validation that matters:** coordinate-bounds failures matched P7 exactly
+(5 lat, 10 lon), the 4 twin-column pairs all showed zero overlap, all 8
+files' per-file date-format check showed zero counter-evidence, province
+normalization hit exactly 77 canonical names with zero orphans, and Gate 1
+matched CLAUDE.md's 161,307 / 21,814 exactly. None of this was a surprise
+-- it's the point: a contract that reproduces already-proven facts when
+run against the same data it was built from is a contract that can be
+trusted to catch a real regression in Phase 2, rather than one that just
+happens to agree with itself by construction.
+
+**One more precise number came out of building the injury-total check**:
+9,872 of 161,307 rows (6.1%) have `serious + minor != total`. P7 had only
+ever said "flag mismatches, don't silently fix" without a count -- the
+contract needed an actual assertion to run, so building it produced the
+number CLAUDE.md was missing.
+
+**Why this matters for the assignment:** the date-column instruction could
+have been treated as a formality (assert non-null, obviously it'll pass,
+move on) -- instead running it against real data surfaced a genuine,
+previously undocumented gap. This is the same lesson as the 90-day
+threshold from the entry above, in the opposite direction: that entry was
+about a check that was too strict where reality was fine; this one is a
+check that revealed reality wasn't quite what everyone assumed, in a place
+nobody had thought to look. Both come from the same discipline -- write
+the assertion, run it against the real file, trust what comes back over
+what seemed obvious going in.

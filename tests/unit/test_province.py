@@ -1,6 +1,10 @@
 import pytest
 
-from rri.cleaning.province import match_province_values, normalize_province
+from rri.cleaning.province import (
+    load_canonical_province_names,
+    match_province_values,
+    normalize_province,
+)
 
 
 class TestNormalizeProvinceCanonical:
@@ -101,3 +105,11 @@ class TestMatchProvinceValues:
         result = match_province_values("test_source", [])
         assert result.total_distinct_values == 0
         assert result.match_rate == 0.0
+
+
+class TestLoadCanonicalProvinceNames:
+    def test_returns_exactly_77_provinces(self) -> None:
+        assert len(load_canonical_province_names()) == 77
+
+    def test_includes_bangkok(self) -> None:
+        assert "กรุงเทพมหานคร" in load_canonical_province_names()

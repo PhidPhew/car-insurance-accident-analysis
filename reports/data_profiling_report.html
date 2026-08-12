@@ -7853,6 +7853,7 @@ notebook นี้ทำหน้าที่แค่ import → เรีย�
 <span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">config.settings</span><span class="w"> </span><span class="kn">import</span> <span class="n">settings</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">rri.contracts.raw</span><span class="w"> </span><span class="kn">import</span> <span class="n">run_accidents_raw_contract</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">rri.utils.logging</span><span class="w"> </span><span class="kn">import</span> <span class="n">configure_logging</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">rri.utils.profiling</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">SOURCE_FILE_DATE_FORMAT</span><span class="p">,</span>
@@ -9351,13 +9352,273 @@ key ไหนเป็น object ซ้อน (nested), และความล
 </div>
 </div>
 </div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=9e8e6761">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<h2 id="9.-Data-Contracts-(Task-5)-%E2%80%94-%E0%B9%80%E0%B8%82%E0%B9%89%E0%B8%B2%E0%B8%A3%E0%B8%AB%E0%B8%B1%E0%B8%AA%E0%B8%AA%E0%B8%B4%E0%B9%88%E0%B8%87%E0%B8%97%E0%B8%B5%E0%B9%88%E0%B8%9E%E0%B8%B4%E0%B8%AA%E0%B8%B9%E0%B8%88%E0%B8%99%E0%B9%8C%E0%B9%81%E0%B8%A5%E0%B9%89%E0%B8%A7-%E0%B9%84%E0%B8%A1%E0%B9%88%E0%B9%83%E0%B8%8A%E0%B9%88%E0%B8%AA%E0%B8%B4%E0%B9%88%E0%B8%87%E0%B8%97%E0%B8%B5%E0%B9%88%E0%B8%AA%E0%B8%A1%E0%B8%A1%E0%B8%95%E0%B8%B4">9. Data Contracts (Task 5) — เข้ารหัสสิ่งที่พิสูจน์แล้ว ไม่ใช่สิ่งที่สมมติ<a class="anchor-link" href="#9.-Data-Contracts-(Task-5)-%E2%80%94-%E0%B9%80%E0%B8%82%E0%B9%89%E0%B8%B2%E0%B8%A3%E0%B8%AB%E0%B8%B1%E0%B8%AA%E0%B8%AA%E0%B8%B4%E0%B9%88%E0%B8%87%E0%B8%97%E0%B8%B5%E0%B9%88%E0%B8%9E%E0%B8%B4%E0%B8%AA%E0%B8%B9%E0%B8%88%E0%B8%99%E0%B9%8C%E0%B9%81%E0%B8%A5%E0%B9%89%E0%B8%A7-%E0%B9%84%E0%B8%A1%E0%B9%88%E0%B9%83%E0%B8%8A%E0%B9%88%E0%B8%AA%E0%B8%B4%E0%B9%88%E0%B8%87%E0%B8%97%E0%B8%B5%E0%B9%88%E0%B8%AA%E0%B8%A1%E0%B8%A1%E0%B8%95%E0%B8%B4">¶</a></h2><p><code>src/rri/contracts/raw.py</code> ใช้ pandera ประกาศ contract สำหรับไฟล์อุบัติเหตุดิบ โดยยึดหลัก:
+<strong>assert เฉพาะสิ่งที่ profiling รอบนี้พิสูจน์แล้วเท่านั้น</strong> ไม่ใช่สิ่งที่ออกแบบไว้ล่วงหน้าโดยไม่มีข้อมูลรองรับ
+(ตัวอย่างที่ผิดพลาดของแนวคิดนี้คือ threshold 90 วันที่แก้ไปแล้วข้างต้น)</p>
+<p><strong>สิ่งที่ contract ตั้งใจ <em>ไม่</em> assert:</strong> รูปแบบวันที่ของ <code>วันที่เกิดเหตุ</code>/<code>วันที่รายงาน</code> — เพราะ 3 รูปแบบ
+ปะปนกันโดยตั้งใจตาม P1 (ต่างกันไปตาม <code>source_file</code>) การ assert รูปแบบเดียวจะเป็นการ assert สิ่งที่ไม่เคย
+พิสูจน์ contract จึงตรวจแค่ "คอลัมน์มีอยู่และไม่เป็น null" ส่วนความถูกต้องของรูปแบบต่อไฟล์ตรวจแยกเป็นอีก
+check หนึ่ง (<code>check_source_file_date_formats</code>) ที่เทียบกับข้อเท็จจริงที่พิสูจน์แล้วโดยตรง</p>
+<p><strong>หลักการ</strong>: ที่ใดที่ข้อมูลจริงต่างจากสิ่งที่ contract คาดหวัง (ซึ่งรู้อยู่แล้วหลายจุดจาก P1-P7) ให้ contract
+fail และรายงานออกมา — <strong>ไม่ลด requirement ลงเพื่อให้ผ่าน</strong> ความล้มเหลวเหล่านั้นคือ deliverable ของ Task 5</p>
+</div>
+</div>
+</div>
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=66493386">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [22]:</div>
+<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="cm-editor cm-s-jupyter">
+<div class="highlight hl-ipython3"><pre><span></span><span class="n">report</span> <span class="o">=</span> <span class="n">run_accidents_raw_contract</span><span class="p">(</span><span class="n">accidents_raw</span><span class="p">)</span>
+
+<span class="n">report</span><span class="o">.</span><span class="n">column_schema_failure_cases</span><span class="o">.</span><span class="n">group_by</span><span class="p">(</span><span class="s2">"column"</span><span class="p">,</span> <span class="s2">"check"</span><span class="p">)</span><span class="o">.</span><span class="n">len</span><span class="p">()</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"column"</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell-outputWrapper">
+<div class="jp-Collapser jp-OutputCollapser jp-Cell-outputCollapser">
+</div>
+<div class="jp-OutputArea jp-Cell-outputArea">
+<div class="jp-OutputArea-child jp-OutputArea-executeResult">
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[22]:</div>
+<div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
+<div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (3, 3)</small><table border="1" class="dataframe"><thead><tr><th>column</th><th>check</th><th>len</th></tr><tr><td>str</td><td>str</td><td>u32</td></tr></thead><tbody><tr><td>"LATITUDE"</td><td>"_in_thailand_lat"</td><td>5</td></tr><tr><td>"LONGITUDE"</td><td>"_in_thailand_lon"</td><td>10</td></tr><tr><td>"วันที่รายงาน"</td><td>"not_nullable"</td><td>78</td></tr></tbody></table></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=f0cd9391">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p><strong>ผลจาก column-level schema</strong>: มี 3 คอลัมน์ที่ fail ตามที่คาดจากงานโปรไฟล์ก่อนหน้า —
+<code>LATITUDE</code> (5 แถว) และ <code>LONGITUDE</code> (10 แถว) ตรงกับ P7 เป๊ะ ส่วน <strong><code>วันที่รายงาน</code> fail 78 แถว เป็น
+สิ่งที่พึ่งค้นพบจาก contract นี้เอง</strong> (ไม่เคยบันทึกใน P1-P7 มาก่อน) — ตรวจดูรายละเอียดต่อ</p>
+</div>
+</div>
+</div>
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=a6c6d003">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [23]:</div>
+<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="cm-editor cm-s-jupyter">
+<div class="highlight hl-ipython3"><pre><span></span><span class="n">accidents_raw</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"วันที่รายงาน"</span><span class="p">)</span><span class="o">.</span><span class="n">is_null</span><span class="p">())</span><span class="o">.</span><span class="n">group_by</span><span class="p">(</span><span class="s2">"source_file"</span><span class="p">)</span><span class="o">.</span><span class="n">len</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell-outputWrapper">
+<div class="jp-Collapser jp-OutputCollapser jp-Cell-outputCollapser">
+</div>
+<div class="jp-OutputArea jp-Cell-outputArea">
+<div class="jp-OutputArea-child jp-OutputArea-executeResult">
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[23]:</div>
+<div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
+<div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (2, 2)</small><table border="1" class="dataframe"><thead><tr><th>source_file</th><th>len</th></tr><tr><td>str</td><td>u32</td></tr></thead><tbody><tr><td>"accident2026.csv"</td><td>74</td></tr><tr><td>"accident2023.csv"</td><td>4</td></tr></tbody></table></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=e00c8bfd">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p>74 จาก 78 แถวอยู่ใน <code>accident2026.csv</code> (ปีที่ข้อมูลยังไม่ครบ — อาจยังไม่ถูกบันทึกวันที่รายงาน
+อย่างเป็นทางการ) อีก 4 แถวอยู่ใน <code>accident2023.csv</code> ส่วน <code>วันที่เกิดเหตุ</code> (วันเกิดเหตุ) ไม่เป็น null เลย
+สักแถว (0/161,307) — <strong>contract ตั้งใจไม่ลดเป็น <code>nullable=True</code> เพื่อให้ผ่าน</strong> ตามหลักการด้านบน
+บันทึกไว้ใน CLAUDE.md P7 แล้วเป็นข้อเท็จจริงใหม่</p>
+</div>
+</div>
+</div>
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=0b54e636">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [24]:</div>
+<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="cm-editor cm-s-jupyter">
+<div class="highlight hl-ipython3"><pre><span></span><span class="n">gate1_df</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+    <span class="p">[</span>
+        <span class="p">{</span><span class="s2">"check"</span><span class="p">:</span> <span class="n">g</span><span class="o">.</span><span class="n">label</span><span class="p">,</span> <span class="s2">"expected"</span><span class="p">:</span> <span class="n">g</span><span class="o">.</span><span class="n">expected</span><span class="p">,</span> <span class="s2">"actual"</span><span class="p">:</span> <span class="n">g</span><span class="o">.</span><span class="n">actual</span><span class="p">,</span> <span class="s2">"passed"</span><span class="p">:</span> <span class="n">g</span><span class="o">.</span><span class="n">passed</span><span class="p">}</span>
+        <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">report</span><span class="o">.</span><span class="n">gate1</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+<span class="n">twin_df</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+    <span class="p">[</span>
+        <span class="p">{</span>
+            <span class="s2">"old_column"</span><span class="p">:</span> <span class="n">t</span><span class="o">.</span><span class="n">old_column</span><span class="p">,</span>
+            <span class="s2">"new_column"</span><span class="p">:</span> <span class="n">t</span><span class="o">.</span><span class="n">new_column</span><span class="p">,</span>
+            <span class="s2">"overlap_rows"</span><span class="p">:</span> <span class="n">t</span><span class="o">.</span><span class="n">overlap_row_count</span><span class="p">,</span>
+            <span class="s2">"passed"</span><span class="p">:</span> <span class="n">t</span><span class="o">.</span><span class="n">passed</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">report</span><span class="o">.</span><span class="n">twin_columns</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+<span class="n">date_format_df</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+    <span class="p">[</span>
+        <span class="p">{</span>
+            <span class="s2">"source_file"</span><span class="p">:</span> <span class="n">d</span><span class="o">.</span><span class="n">source_file</span><span class="p">,</span>
+            <span class="s2">"expected_format"</span><span class="p">:</span> <span class="n">d</span><span class="o">.</span><span class="n">expected_format</span><span class="p">,</span>
+            <span class="s2">"counter_evidence"</span><span class="p">:</span> <span class="n">d</span><span class="o">.</span><span class="n">counter_evidence_count</span><span class="p">,</span>
+            <span class="s2">"passed"</span><span class="p">:</span> <span class="n">d</span><span class="o">.</span><span class="n">passed</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">report</span><span class="o">.</span><span class="n">date_formats</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Gate 1:"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">gate1_df</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Twin columns:"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">twin_df</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Per-file date format:"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">date_format_df</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Province:"</span><span class="p">,</span> <span class="n">report</span><span class="o">.</span><span class="n">province</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Injury totals:"</span><span class="p">,</span> <span class="n">report</span><span class="o">.</span><span class="n">injury_totals</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell-outputWrapper">
+<div class="jp-Collapser jp-OutputCollapser jp-Cell-outputCollapser">
+</div>
+<div class="jp-OutputArea jp-Cell-outputArea">
+<div class="jp-OutputArea-child">
+<div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
+<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain" tabindex="0">
+<pre>Gate 1:
+shape: (2, 4)
+┌──────────────────────┬──────────┬────────┬────────┐
+│ check                ┆ expected ┆ actual ┆ passed │
+│ ---                  ┆ ---      ┆ ---    ┆ ---    │
+│ str                  ┆ i64      ┆ i64    ┆ bool   │
+╞══════════════════════╪══════════╪════════╪════════╡
+│ gate1_accident_count ┆ 161307   ┆ 161307 ┆ true   │
+│ gate1_fatality_count ┆ 21814    ┆ 21814  ┆ true   │
+└──────────────────────┴──────────┴────────┴────────┘
+
+Twin columns:
+shape: (4, 4)
+┌───────────────────┬───────────────────────────┬──────────────┬────────┐
+│ old_column        ┆ new_column                ┆ overlap_rows ┆ passed │
+│ ---               ┆ ---                       ┆ ---          ┆ ---    │
+│ str               ┆ str                       ┆ i64          ┆ bool   │
+╞═══════════════════╪═══════════════════════════╪══════════════╪════════╡
+│ รถยนต์นั่งส่วนบุคคล    ┆ รถยนต์นั่งส่วนบุคคล/รถยนต์นั่ง…   ┆ 0            ┆ true   │
+│ รถบรรทุกไม่เกิน10ล้อ  ┆ รถบรรทุกมากกว่า6ล้อไม่เกิน10ล้… ┆ 0            ┆ true   │
+│ รถบรรทุกมากกว่า10ล้อ ┆ รถบรรทุกมากกว่า10ล้อ(รถพ่วง)  ┆ 0            ┆ true   │
+│ รถอื่นๆ             ┆ อื่นๆ                       ┆ 0            ┆ true   │
+└───────────────────┴───────────────────────────┴──────────────┴────────┘
+
+Per-file date format:
+shape: (8, 4)
+┌──────────────────┬─────────────────┬──────────────────┬────────┐
+│ source_file      ┆ expected_format ┆ counter_evidence ┆ passed │
+│ ---              ┆ ---             ┆ ---              ┆ ---    │
+│ str              ┆ str             ┆ i64              ┆ bool   │
+╞══════════════════╪═════════════════╪══════════════════╪════════╡
+│ accident2019.csv ┆ dmy             ┆ 0                ┆ true   │
+│ accident2020.csv ┆ mdy             ┆ 0                ┆ true   │
+│ accident2021.csv ┆ mdy             ┆ 0                ┆ true   │
+│ accident2022.csv ┆ mdy             ┆ 0                ┆ true   │
+│ accident2023.csv ┆ mdy             ┆ 0                ┆ true   │
+│ accident2024.csv ┆ excel_serial    ┆ 0                ┆ true   │
+│ accident2025.csv ┆ excel_serial    ┆ 0                ┆ true   │
+│ accident2026.csv ┆ dmy             ┆ 0                ┆ true   │
+└──────────────────┴─────────────────┴──────────────────┴────────┘
+
+Province: ProvinceContractResult(canonical_province_count=77, orphan_values=())
+
+Injury totals: InjuryTotalCheckResult(mismatched_row_count=9872, total_rows=161307)
+</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=4ec5310b">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p><strong>ทุก check ที่เหลือผ่านทั้งหมด — ยืนยัน (ไม่ใช่แค่คาดหวัง) สิ่งที่พิสูจน์ไว้ก่อนหน้านี้ทั้ง Phase 1:</strong></p>
+<ul>
+<li><strong>Gate 1</strong>: accident_count และ fatality_count ตรงกับ CLAUDE.md §8 เป๊ะทั้งคู่ (161,307 / 21,814)</li>
+<li><strong>คู่คอลัมน์แฝด</strong>: ทั้ง 4 คู่ overlap = 0 แถว ตรงกับ P3 (คู่ที่ 5 ไม่รวมในนี้ เพราะพิสูจน์แล้วว่าไม่ใช่ twin
+column จริง)</li>
+<li><strong>รูปแบบวันที่ต่อไฟล์</strong>: ทั้ง 8 ไฟล์ counter_evidence = 0 — ยืนยัน P1 อีกครั้งในรูปแบบ contract ที่ใช้ซ้ำได้
+ไม่ใช่แค่ notebook cell แบบ one-off</li>
+<li><strong>จังหวัด</strong>: 77 จังหวัด, orphan = 0 แถว — ยืนยัน Task 3</li>
+<li><strong>ยอดผู้บาดเจ็บ</strong> (<code>สาหัส + เล็กน้อย == รวม</code>): พบ mismatch <strong>9,872 แถว (6.1%)</strong> — ตัวเลขที่แม่นยำนี้ไม่เคย
+ถูกวัดมาก่อน (P7 เดิมบอกแค่ "ให้ flag ไว้") บันทึกไว้ใน CLAUDE.md P7 แล้ว</li>
+</ul>
+<p><strong>Gate 2</strong> (หลัง dedup) ยังไม่รันในที่นี้ — ต้องใช้ dataframe ที่ dedup แล้ว ซึ่งยังไม่มีจนกว่าจะถึง Phase 2
+<code>check_gate2_reconciliation()</code> เตรียมพร้อมให้ Phase 2 เรียกใช้ตอนสร้าง warehouse</p>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=b68cc9c0">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<h3 id="%E0%B8%AA%E0%B8%A3%E0%B8%B8%E0%B8%9B-Task-5">สรุป Task 5<a class="anchor-link" href="#%E0%B8%AA%E0%B8%A3%E0%B8%B8%E0%B8%9B-Task-5">¶</a></h3><p>Contract ตั้งใจปล่อยให้ fail ในจุดที่รู้อยู่แล้วว่าข้อมูลจริงไม่ตรงกับความคาดหวัง (พิกัดนอกขอบเขต,
+ยอดผู้บาดเจ็บไม่ตรง) และยังค้นพบสิ่งใหม่ 1 อย่าง (<code>วันที่รายงาน</code> null 78 แถว) ที่ profiling รอบก่อนหน้าไม่เคย
+ตรวจพบ — เพราะไม่เคย assert ความ non-null ของคอลัมน์นี้มาก่อน ไม่มี check ใดถูกลด requirement เพื่อให้ผ่าน</p>
+</div>
+</div>
+</div>
+</div>
 <div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=0767e229">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h2 id="9.-%E0%B8%AA%E0%B8%A3%E0%B8%B8%E0%B8%9B%E0%B8%9C%E0%B8%A5">9. สรุปผล<a class="anchor-link" href="#9.-%E0%B8%AA%E0%B8%A3%E0%B8%B8%E0%B8%9B%E0%B8%9C%E0%B8%A5">¶</a></h2><h3 id="%E0%B8%A2%E0%B8%B7%E0%B8%99%E0%B8%A2%E0%B8%B1%E0%B8%99%E0%B8%95%E0%B8%A3%E0%B8%87%E0%B8%81%E0%B8%B1%E0%B8%9A-CLAUDE.md-%C2%A76-%E0%B9%81%E0%B8%9A%E0%B8%9A%E0%B9%80%E0%B8%9B%E0%B9%8A%E0%B8%B0%E0%B8%97%E0%B8%B8%E0%B8%81%E0%B8%95%E0%B8%B1%E0%B8%A7%E0%B9%80%E0%B8%A5%E0%B8%82">ยืนยันตรงกับ CLAUDE.md §6 แบบเป๊ะทุกตัวเลข<a class="anchor-link" href="#%E0%B8%A2%E0%B8%B7%E0%B8%99%E0%B8%A2%E0%B8%B1%E0%B8%99%E0%B8%95%E0%B8%A3%E0%B8%87%E0%B8%81%E0%B8%B1%E0%B8%9A-CLAUDE.md-%C2%A76-%E0%B9%81%E0%B8%9A%E0%B8%9A%E0%B9%80%E0%B8%9B%E0%B9%8A%E0%B8%B0%E0%B8%97%E0%B8%B8%E0%B8%81%E0%B8%95%E0%B8%B1%E0%B8%A7%E0%B9%80%E0%B8%A5%E0%B8%82">¶</a></h3><ul>
+<h2 id="10.-%E0%B8%AA%E0%B8%A3%E0%B8%B8%E0%B8%9B%E0%B8%9C%E0%B8%A5">10. สรุปผล<a class="anchor-link" href="#10.-%E0%B8%AA%E0%B8%A3%E0%B8%B8%E0%B8%9B%E0%B8%9C%E0%B8%A5">¶</a></h2><h3 id="%E0%B8%A2%E0%B8%B7%E0%B8%99%E0%B8%A2%E0%B8%B1%E0%B8%99%E0%B8%95%E0%B8%A3%E0%B8%87%E0%B8%81%E0%B8%B1%E0%B8%9A-CLAUDE.md-%C2%A76-%E0%B9%81%E0%B8%9A%E0%B8%9A%E0%B9%80%E0%B8%9B%E0%B9%8A%E0%B8%B0%E0%B8%97%E0%B8%B8%E0%B8%81%E0%B8%95%E0%B8%B1%E0%B8%A7%E0%B9%80%E0%B8%A5%E0%B8%82">ยืนยันตรงกับ CLAUDE.md §6 แบบเป๊ะทุกตัวเลข<a class="anchor-link" href="#%E0%B8%A2%E0%B8%B7%E0%B8%99%E0%B8%A2%E0%B8%B1%E0%B8%99%E0%B8%95%E0%B8%A3%E0%B8%87%E0%B8%81%E0%B8%B1%E0%B8%9A-CLAUDE.md-%C2%A76-%E0%B9%81%E0%B8%9A%E0%B8%9A%E0%B9%80%E0%B8%9B%E0%B9%8A%E0%B8%B0%E0%B8%97%E0%B8%B8%E0%B8%81%E0%B8%95%E0%B8%B1%E0%B8%A7%E0%B9%80%E0%B8%A5%E0%B8%82">¶</a></h3><ul>
 <li><strong>P1</strong> (รูปแบบวันที่ปะปน 3 แบบ) — ยืนยันครบทั้ง 8 <code>source_file</code></li>
 <li><strong>P2</strong> (เวลาแบบ <code>21:10</code> ปนกับ Excel fraction, <code>0:00</code> = 219 ครั้ง)</li>
 <li><strong>P4</strong> (จำนวนหมวดหมู่ก่อนย่อ: 120 / 152 / 89 และตัวอย่างการรวม "เร่งความเร็ว" 71.0%)</li>

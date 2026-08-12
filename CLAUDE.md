@@ -428,7 +428,8 @@ Province counts: accidents 77 ✅ · rainfall 77 ✅ · registration 77 ✅ · *
 | Rainfall has 6 rows per province-month | lead 0–5 | ⚠️ **not duplicates** — pivot to `rain_lead0..5` |
 | TAT coordinates embedded in a string | `"7.376891, 99.6734393"` | split, cast, validate bounds |
 | ID overflow | `ATT_ID` is 17 digits; `9637.0` float/int mix | read everything as string first |
-| Injury totals | check `serious + minor == total` | flag mismatches, don't silently fix |
+| Injury totals | check `serious + minor == total` — **quantified (Task 5 contract): 9,872 / 161,307 rows (6.1%) mismatch** | flag mismatches, don't silently fix |
+| `วันที่รายงาน` (report date) is null in 78 rows | 74 in `accident2026.csv` (still-incomplete year — plausibly not yet formally filed), 4 in `accident2023.csv`. `วันที่เกิดเหตุ` (accident date) is **never** null (0 rows) — found by Task 5's data contract asserting non-null and correctly failing on these 78, not by earlier profiling | contract asserts non-null and reports the failure per-row; do not loosen to nullable just to pass |
 | Incomplete periods | 2026 has 8,738 rows (~4 months) | exclude from trends; use as holdout |
 | Registration nulls | 697 rows with both count and fuel null | fill 0 (province has none of that type) |
 | **Coverage bias** | Highways Dept 149,327 (92.6%) · Rural Roads 9,302 · Expressway 2,678 | **cannot be fixed** → document as a limitation, expose an agency filter in the dashboard |
@@ -438,6 +439,31 @@ Province counts: accidents 77 ✅ · rainfall 77 ✅ · registration 77 ✅ · *
 - **Don't remove severe outliers** (one crash killed 23 people) — tail events are exactly what
   bankrupts insurers; they must stay
 - **Don't try to correct agency coverage bias** — state it as a limitation instead
+
+### ✅ Task 5 — Data contracts (`src/rri/contracts/raw.py`, pandera)
+
+Contracts encode facts **proven** during profiling, never facts assumed at design time (the 90-day
+threshold above is the cautionary example of what happens when that rule is broken). Run via
+`run_accidents_raw_contract(df)` against the real accidents file:
+
+| Check | Result | Notes |
+|---|---|---|
+| `วันที่เกิดเหตุ` (accident date) present + non-null | ✅ pass | **No format/shape assertion** — 3 formats coexist by design (P1) |
+| `วันที่รายงาน` (report date) present + non-null | ❌ **fails on 78 rows** | New finding — see P7 table above. Contract intentionally not loosened to `nullable=True` |
+| `LATITUDE` in [5, 21] | ❌ fails on 5 rows | Matches P7 exactly |
+| `LONGITUDE` in [97, 106] | ❌ fails on 10 rows | Matches P7 exactly |
+| `source_file` ∈ the 8 known files | ✅ pass | |
+| Per-file date format has zero counter-evidence (`check_source_file_date_formats`) | ✅ pass, all 8 files | Re-confirms the P1 "zero DMY evidence" finding as a reusable contract, not just a one-off notebook check |
+| The 4 proven twin-column pairs have zero row-overlap (`check_twin_column_pairs`) | ✅ pass, all 4 | Excludes the 5th pair (`บริเวณที่เกิดเหตุ`/`บริเวณที่เกิดเหตุอื่น`) — proven NOT a twin pair |
+| 77 canonical provinces, zero orphan values (`check_province_normalization`) | ✅ pass | Reuses `rri.cleaning.province.match_province_values` — no duplicated logic |
+| Gate 1 reconciliation: `GATE_1_ACCIDENT_COUNT=161,307`, `GATE_1_FATALITY_COUNT=21,814` | ✅ pass | Constants in code (`check_gate1_reconciliation`), not just prose |
+| Gate 2 reconciliation: `GATE_2_ACCIDENT_COUNT=159,605`, `GATE_2_FATALITY_COUNT=21,497` | not run here | Requires a post-dedup dataframe (`check_gate2_reconciliation`) — ready for Phase 2's warehouse build to call once the ACC_CODE dedup rule is implemented |
+| Injury totals: `serious + minor == total` (`check_injury_totals`) | ❌ fails on 9,872 rows (6.1%) | Newly quantified exact count (P7 previously only said "flag mismatches") |
+
+**Every failure above is a known, already-quantified fact — not a bug in the contract.** The two coordinate
+checks and the gate constants match CLAUDE.md's existing numbers exactly; the report-date-null and
+injury-total counts are new precise quantifications the contract itself surfaced. None of the checks were
+loosened to make them pass.
 
 ---
 
@@ -587,7 +613,7 @@ should say "we tested three approaches and chose on evidence."
 
 | Phase | Work | Status | Notes |
 |---|---|---|---|
-| 1 | Scaffold + holiday backfill + province master + profiling | ⬜ not started | |
+| 1 | Scaffold + holiday backfill + province master + profiling + data contracts | ✅ done | Tasks 0-5 complete: git/scaffold, holiday backfill, province master (77, 100% matched), full raw-file profiling (`notebooks/01_data_profiling.ipynb`), and `src/rri/contracts/raw.py` (pandera). All 17 P1-P7 problems verified against real data, several corrected from their original draft (P1 safety net #4, P5 root cause, P3 pair 5, the 90-day threshold). Nothing cleaned yet — Phase 2 starts from here. |
 | 2 | ETL: extract + clean (17 problems) | ⬜ | |
 | 3 | Build warehouse + DQ gates | ⬜ | |
 | 4 | Simulated policy portfolio | ⬜ | |
@@ -605,3 +631,5 @@ should say "we tested three approaches and chose on evidence."
 | 2026-08-11 | Dashboard | Streamlit, Thai UI | can call ML and Claude API live |
 | 2026-08-11 | Dropped data | `banks.json`, `tat_*_clean.csv` | no join key / exact duplicate |
 | 2026-08-11 | Portfolio | Simulated, but claims derived from real accidents | avoids circular reasoning |
+| 2026-08-13 | Safety net #2 threshold | 398 days (p99 of measured report-lag), not the originally-drafted 90 | 90 was invented at design time; profiling real data showed a 90-day gate would reject 28.6% of all rows |
+| 2026-08-13 | Data contracts | `src/rri/contracts/raw.py` asserts only proven facts (gates, twin columns, per-file date format, 77 provinces); no date-format shape assertion on `วันที่เกิดเหตุ`/`วันที่รายงาน` | 3 date formats coexist by design (P1); contract failures (coords, injury totals, 78 null report-dates) are the intended deliverable, not bugs to fix |
