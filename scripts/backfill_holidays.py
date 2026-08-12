@@ -11,7 +11,12 @@ Writes two files:
   DGA-sourced data).
 * ``config/holiday_flags_2019_2026.csv`` -- one row per calendar day from
   2019-01-01 to 2026-12-31 with the derived flags CLAUDE.md Task 2 asks
-  for (is_long_weekend, is_songkran_7days, days_to_next_holiday, ...).
+  for (is_long_weekend, is_songkran_7days, days_to_next_holiday, ...),
+  plus is_private_sector_holiday (Labour Day, tracked separately from
+  is_public_holiday since it's absent from the DGA calendar but a real
+  non-working day for most of the workforce) and covid_disruption_level
+  (none/partial/severe, sourced date ranges in src/rri/io/holidays.py --
+  April 2020 was under nationwide curfew, not just a postponed Songkran).
   Building `dim_date` itself is Phase 3's job; this is the validated
   input Phase 3 will consume.
 
@@ -41,6 +46,7 @@ from rri.io.holidays import (  # noqa: E402
     cross_check_existing_file,
     cross_check_logicspark_2023,
     fetch_holidays_package,
+    fetch_private_sector_holiday_dates,
     validate_holiday_count,
     validate_new_year,
     validate_songkran,
@@ -103,12 +109,14 @@ def write_daily_flags_csv(path: Path, flags: list[Any]) -> None:
         "date",
         "is_public_holiday",
         "is_bank_holiday",
+        "is_private_sector_holiday",
         "is_weekend",
         "is_long_weekend",
         "is_songkran_7days",
         "is_newyear_7days",
         "is_holiday_eve",
         "days_to_next_holiday",
+        "covid_disruption_level",
     ]
     with path.open("w", encoding="utf-8", newline="") as f:
         writer = csv.writer(f)
@@ -119,12 +127,14 @@ def write_daily_flags_csv(path: Path, flags: list[Any]) -> None:
                     row.date.isoformat(),
                     row.is_public_holiday,
                     "" if row.is_bank_holiday is None else row.is_bank_holiday,
+                    row.is_private_sector_holiday,
                     row.is_weekend,
                     row.is_long_weekend,
                     row.is_songkran_7days,
                     row.is_newyear_7days,
                     row.is_holiday_eve,
                     "" if row.days_to_next_holiday is None else row.days_to_next_holiday,
+                    row.covid_disruption_level,
                 ]
             )
 
@@ -180,6 +190,11 @@ def main() -> int:
         date.fromisoformat(h["date"]) for block in existing_bank["years"] for h in block["holidays"]
     }
     bank_holiday_known_years = {block["year"] for block in existing_bank["years"]}
+    private_sector_holiday_dates = fetch_private_sector_holiday_dates(all_years)
+    log.info(
+        "private_sector_holidays_fetched",
+        dates=sorted(d.isoformat() for d in private_sector_holiday_dates),
+    )
 
     flags = build_daily_flags(
         FULL_RANGE_START,
@@ -187,6 +202,7 @@ def main() -> int:
         public_holiday_dates,
         bank_holiday_dates,
         bank_holiday_known_years,
+        private_sector_holiday_dates,
     )
     flags_path = settings.config_dir / "holiday_flags_2019_2026.csv"
     write_daily_flags_csv(flags_path, flags)

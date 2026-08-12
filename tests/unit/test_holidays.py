@@ -140,10 +140,16 @@ class TestBuildDailyFlags:
     END = date(2025, 1, 12)
     PUBLIC_HOLIDAYS = {date(2025, 1, 6)}  # a Monday
     BANK_HOLIDAYS: set[date] = set()
+    PRIVATE_SECTOR_HOLIDAYS: set[date] = set()
 
     def _flags_by_date(self) -> dict[date, Any]:
         flags = build_daily_flags(
-            self.START, self.END, self.PUBLIC_HOLIDAYS, self.BANK_HOLIDAYS, {2025}
+            self.START,
+            self.END,
+            self.PUBLIC_HOLIDAYS,
+            self.BANK_HOLIDAYS,
+            {2025},
+            self.PRIVATE_SECTOR_HOLIDAYS,
         )
         return {f.date: f for f in flags}
 
@@ -181,24 +187,85 @@ class TestBuildDailyFlags:
 
     def test_bank_holiday_is_none_outside_known_years(self) -> None:
         flags = build_daily_flags(
-            self.START, self.END, self.PUBLIC_HOLIDAYS, self.BANK_HOLIDAYS, set()
+            self.START, self.END, self.PUBLIC_HOLIDAYS, self.BANK_HOLIDAYS, set(), set()
         )
         assert all(f.is_bank_holiday is None for f in flags)
 
     def test_songkran_and_newyear_windows(self) -> None:
-        flags = build_daily_flags(date(2025, 4, 10), date(2025, 4, 18), set(), set(), set())
+        flags = build_daily_flags(date(2025, 4, 10), date(2025, 4, 18), set(), set(), set(), set())
         by_date = {f.date: f for f in flags}
         assert by_date[date(2025, 4, 11)].is_songkran_7days is True
         assert by_date[date(2025, 4, 17)].is_songkran_7days is True
         assert by_date[date(2025, 4, 10)].is_songkran_7days is False
         assert by_date[date(2025, 4, 18)].is_songkran_7days is False
 
-        newyear_flags = build_daily_flags(date(2025, 12, 27), date(2026, 1, 5), set(), set(), set())
+        newyear_flags = build_daily_flags(
+            date(2025, 12, 27), date(2026, 1, 5), set(), set(), set(), set()
+        )
         by_date2 = {f.date: f for f in newyear_flags}
         assert by_date2[date(2025, 12, 29)].is_newyear_7days is True
         assert by_date2[date(2026, 1, 4)].is_newyear_7days is True
         assert by_date2[date(2025, 12, 28)].is_newyear_7days is False
         assert by_date2[date(2026, 1, 5)].is_newyear_7days is False
+
+    def test_private_sector_holiday_is_independent_of_public_holiday(self) -> None:
+        flags = build_daily_flags(
+            date(2025, 4, 30),
+            date(2025, 5, 2),
+            set(),  # no public holidays
+            set(),
+            set(),
+            {date(2025, 5, 1)},  # Labour Day
+        )
+        by_date = {f.date: f for f in flags}
+        assert by_date[date(2025, 5, 1)].is_private_sector_holiday is True
+        assert by_date[date(2025, 5, 1)].is_public_holiday is False
+        assert by_date[date(2025, 4, 30)].is_private_sector_holiday is False
+
+
+class TestCovidDisruptionLevel:
+    def test_severe_window_covers_actual_songkran_dates(self) -> None:
+        assert holidays_module.covid_disruption_level(date(2020, 4, 13)) == "severe"
+        assert holidays_module.covid_disruption_level(date(2020, 4, 3)) == "severe"
+        assert holidays_module.covid_disruption_level(date(2020, 5, 2)) == "severe"
+
+    def test_partial_windows_before_and_after_severe(self) -> None:
+        assert holidays_module.covid_disruption_level(date(2020, 3, 26)) == "partial"
+        assert holidays_module.covid_disruption_level(date(2020, 4, 2)) == "partial"
+        assert holidays_module.covid_disruption_level(date(2020, 5, 3)) == "partial"
+        assert holidays_module.covid_disruption_level(date(2020, 6, 14)) == "partial"
+
+    def test_none_outside_the_disruption_window(self) -> None:
+        assert holidays_module.covid_disruption_level(date(2020, 3, 25)) == "none"
+        assert holidays_module.covid_disruption_level(date(2020, 6, 15)) == "none"
+        assert holidays_module.covid_disruption_level(date(2021, 4, 13)) == "none"
+        assert holidays_module.covid_disruption_level(date(2019, 4, 13)) == "none"
+
+    def test_build_daily_flags_includes_covid_level(self) -> None:
+        flags = build_daily_flags(date(2020, 3, 20), date(2020, 4, 5), set(), set(), set(), set())
+        by_date = {f.date: f for f in flags}
+        assert by_date[date(2020, 3, 20)].covid_disruption_level == "none"
+        assert by_date[date(2020, 4, 1)].covid_disruption_level == "partial"
+        assert by_date[date(2020, 4, 3)].covid_disruption_level == "severe"
+
+
+class TestFetchPrivateSectorHolidayDates:
+    def test_includes_fixed_may_1_dates(self) -> None:
+        dates = holidays_module.fetch_private_sector_holiday_dates([2019, 2024])
+        assert date(2019, 5, 1) in dates
+        assert date(2024, 5, 1) in dates
+
+    def test_includes_in_lieu_substitute_when_may_1_falls_on_weekend(self) -> None:
+        # 2021-05-01 was a Saturday, 2022-05-01 was a Sunday.
+        dates = holidays_module.fetch_private_sector_holiday_dates([2021, 2022])
+        assert date(2021, 5, 1) in dates
+        assert date(2021, 5, 3) in dates  # in-lieu Monday
+        assert date(2022, 5, 1) in dates
+        assert date(2022, 5, 2) in dates  # in-lieu Monday
+
+    def test_excludes_childrens_day(self) -> None:
+        dates = holidays_module.fetch_private_sector_holiday_dates([2023])
+        assert date(2023, 1, 14) not in dates  # National Children's Day 2023
 
 
 class TestFetchLogicsparkYear:

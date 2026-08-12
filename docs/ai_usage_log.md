@@ -87,3 +87,69 @@ of assuming the fetch was either "correct" or "wrong" at face value — the
 first was a validation rule that needed an exception, the second was a
 source that needed narrowing. Neither would have surfaced without the
 cross-source and historical sanity checks Task 2 asked for.
+
+---
+
+## 2026-08-12 — Both Task 2 findings needed deeper handling than a log entry
+
+**Phase / task:** Phase 1, Task 2 follow-up (`src/rri/io/holidays.py`)
+
+The two findings logged above (2020 Songkran postponement, Labour Day
+scope mismatch) were initially just logged as documented exceptions. The
+project owner pushed back on both — correctly: logging a discrepancy
+isn't the same as modeling its actual effect. Both were escalated from a
+log entry to a schema change.
+
+**Decision 1 — 2020 Songkran needed a `covid_disruption_level` dimension,
+not just an exception note.** The initial fix treated 2020 as "Songkran on
+different dates." The owner pointed out this understates what actually
+happened: April 2020 was under a nationwide curfew with interprovincial
+travel restricted, so April traffic that year isn't a shifted-holiday
+signal, it's a suppressed-travel signal — averaging it into the normal
+Songkran baseline would make BQ3 (holiday-period risk analysis) understate
+the festival effect.
+
+Added `covid_disruption_level` (none / partial / severe) to the daily
+flags output, covering roughly Apr-Jun 2020. Every boundary is sourced
+from a specific, citable government action rather than guessed — the
+instruction was explicit that an uncitable date range should stop and
+ask, not get invented:
+
+- 2020-03-17 — Cabinet announces Songkran (13-15 Apr) postponed
+- 2020-03-26 — Nationwide State of Emergency takes effect
+- 2020-04-03 — Nationwide curfew begins (22:00-04:00) → **severe** starts
+- 2020-05-03 — Phase 1 lockdown easing begins → **severe** ends, **partial** (phased reopening) begins
+- 2020-06-15 — Nationwide curfew lifted → back to **none**
+
+(Citations for each are inline as comments in `src/rri/io/holidays.py`
+next to the constant definitions.) BQ3's analysis can now exclude the
+severe-disruption window explicitly instead of silently blending it into
+"normal" Songkran data.
+
+**Decision 2 — Labour Day should be reclassified, not dropped.** The
+initial fix excluded Labour Day from the backfill entirely, on the
+reasoning that it's absent from the DGA government calendar
+(`public_holidays_all.json`). The owner's correction: absence from that
+one source doesn't mean absence of effect — most of the Thai workforce is
+private-sector, so 1 May is a real non-working day that changes traffic
+patterns, which is what the project actually measures risk against.
+Dropping it silently would also have created a worse problem than
+including it: `thai_bank_holidays_all.json` already has Labour Day for
+2025-2026 (banks close for it), so the un-reclassified version had Labour
+Day appearing for 2 of 8 years and silently vanishing for the other 6 — an
+inconsistency across years that's more damaging than an extra column.
+
+Fix: kept `is_public_holiday` scoped exactly to the DGA calendar (no
+change there), and added a second, independent flag,
+`is_private_sector_holiday`, sourced from the same `holidays` package data
+including its in-lieu substitute dates for years Labour Day falls on a
+weekend (verified: 2021-05-01 was a Saturday → substitute 2021-05-03;
+2022-05-01 was a Sunday → substitute 2022-05-02). National Children's Day
+stays excluded entirely — it's a symbolic observance with no mandated
+non-working status, unlike Labour Day.
+
+**Why this matters for the assignment:** the underlying lesson is that
+"log the discrepancy" is necessary but not sufficient — the log entry has
+to be checked against whether it changes what a downstream business
+question (BQ3 here) can actually conclude. Both fixes turned a footnote
+into a modeled dimension the dashboard/analysis can filter or split on.

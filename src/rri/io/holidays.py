@@ -59,11 +59,27 @@ SPECIAL_MARKERS = ("วันหยุดพิเศษ", "bridge", "special")
 # The `holidays` package's "public" category is broader than the real
 # public_holidays_all.json: it also includes observance/private-sector days
 # (National Children's Day, National Labor Day) that a cross-check against
-# the real 2025-2026 file shows are absent there. public_holidays_all.json
+# the real 2025-2026 file shows are absent there -- public_holidays_all.json
 # is the government-office holiday calendar, not the full labour-law
-# calendar, so these are excluded to keep 2019-2024 consistent in scope
-# with 2025-2026.
-EXCLUDED_NAME_MARKERS_EN = ("children's day", "labor day", "labour day")
+# calendar.
+#
+# The two are NOT equivalent and are handled differently:
+# - National Children's Day is a symbolic observance (schools/some venues
+#   run activities; it is not a mandated non-working day for anyone). It is
+#   dropped entirely.
+# - National Labor Day (1 May) IS a mandated non-working day for
+#   private-sector employees under the Labour Protection Act -- most of the
+#   Thai workforce is private sector, so it genuinely changes traffic
+#   patterns even though it never appears in the DGA government calendar.
+#   Dropping it would also create a silent inconsistency: it already shows
+#   up in thai_bank_holidays_all.json for 2025-2026 (banks close), but
+#   would be invisible for the backfilled 2019-2024 years. So it is kept,
+#   just tracked on its own DailyFlags.is_private_sector_holiday flag
+#   instead of folded into is_public_holiday -- see
+#   `fetch_private_sector_holiday_dates`.
+CHILDRENS_DAY_MARKER_EN = "children's day"
+PRIVATE_SECTOR_ONLY_MARKERS_EN = ("labor day", "labour day")
+EXCLUDED_NAME_MARKERS_EN = (CHILDRENS_DAY_MARKER_EN, *PRIVATE_SECTOR_ONLY_MARKERS_EN)
 
 MIN_EXPECTED_HOLIDAYS_PER_YEAR = 13
 MAX_EXPECTED_HOLIDAYS_PER_YEAR = 25
@@ -180,6 +196,30 @@ def fetch_holidays_package(years: list[int]) -> list[dict[str, Any]]:
     return entries
 
 
+def fetch_private_sector_holiday_dates(years: list[int]) -> set[date]:
+    """Fetch Labour Day (1 May) and its in-lieu substitute dates, sourced not assumed.
+
+    Thai Labour Day always falls on 1 May, but -- like DGA public holidays
+    -- gets an in-lieu substitute day when it lands on a weekend (verified
+    against the `holidays` package: 2021-05-01 was a Saturday, substitute
+    2021-05-03; 2022-05-01 was a Sunday, substitute 2022-05-02). Deriving
+    this from the same fetched data rather than hard-coding "1 May every
+    year" keeps those substitute dates accurate without guessing.
+    """
+    # `holidays` ships py.typed but HolidayBase.__init__ itself isn't fully
+    # annotated, so mypy --strict flags this as an untyped call regardless.
+    public_en = ThailandHolidays(  # type: ignore[no-untyped-call]
+        years=years, language="en_US", categories=("public",)
+    )
+    dates: set[date] = set()
+    for d, name in public_en.items():
+        for single_name in name.split(";"):
+            lowered = single_name.strip().lower()
+            if any(marker in lowered for marker in PRIVATE_SECTOR_ONLY_MARKERS_EN):
+                dates.add(d)
+    return dates
+
+
 def fetch_logicspark_year(year: int, timeout: float = 10.0) -> list[dict[str, Any]] | None:
     """Fetch one year of logicspark/thailand-holidays raw JSON, or None if unavailable.
 
@@ -271,6 +311,56 @@ def validate_new_year(year: int, entries: list[dict[str, Any]]) -> str | None:
 
 
 # --------------------------------------------------------------------------
+# COVID-19 disruption (2020) -- an analysis dimension, not a footnote.
+# --------------------------------------------------------------------------
+#
+# April 2020 wasn't just "Songkran moved to different dates": Thailand was
+# under a nationwide curfew and interprovincial travel was restricted, so
+# treating that window as a normal (if postponed) Songkran would understate
+# the festival effect in BQ3. Every boundary below is sourced from a
+# specific government action, not guessed -- if a boundary can't be cited,
+# it isn't in this table:
+#
+#   2020-03-17  Cabinet announces Songkran (13-15 Apr) postponed
+#               https://www.tatnews.org/2020/03/tat-update-thailand-postpones-songkran-2020-temporarily-closes-venues-with-large-crowds/
+#   2020-03-26  Nationwide State of Emergency takes effect (Emergency
+#               Decree on Public Administration in Emergency Situations)
+#               https://www.thaienquirer.com/10062/thailand-declares-state-of-emergency-march-26-april-30-establishment-of-action-center/
+#   2020-04-03  Nationwide curfew begins, 22:00-04:00
+#               https://canberra.thaiembassy.org/a-nationwide-curfew-imposed-on-3-april-onwards-to-effectively-deal-with-covid-19/
+#   2020-05-03  Phase 1 easing: markets, restaurants, salons reopen
+#               nationwide; curfew still in force
+#               https://www.tatnews.org/2020/05/tat-update-businesses-and-activities-allowed-to-reopen-with-strict-control-from-3-may-2020/
+#   2020-06-15  Nationwide curfew lifted
+#               https://newsinfo.inquirer.net/1291419/thailand-lifts-curfew-from-june-15-but-international-travel-to-be-controlled/amp
+#
+# Levels:
+#   "severe"  04-03 to 05-02: curfew in force, zero reopening phases yet --
+#             the actual Songkran dates (13-15 Apr) fall inside this window.
+#   "partial" 03-26 to 04-02: state of emergency active, curfew not yet
+#             started; and 05-03 to 06-14: phased reopening underway while
+#             the curfew was still technically active.
+#   "none"    everything else.
+COVID_SEVERE_START = date(2020, 4, 3)
+COVID_SEVERE_END = date(2020, 5, 2)
+COVID_PARTIAL_EARLY_START = date(2020, 3, 26)
+COVID_PARTIAL_EARLY_END = date(2020, 4, 2)
+COVID_PARTIAL_LATE_START = date(2020, 5, 3)
+COVID_PARTIAL_LATE_END = date(2020, 6, 14)
+
+
+def covid_disruption_level(d: date) -> str:
+    """ "none" / "partial" / "severe" -- see the sourced date table above."""
+    if COVID_SEVERE_START <= d <= COVID_SEVERE_END:
+        return "severe"
+    if COVID_PARTIAL_EARLY_START <= d <= COVID_PARTIAL_EARLY_END:
+        return "partial"
+    if COVID_PARTIAL_LATE_START <= d <= COVID_PARTIAL_LATE_END:
+        return "partial"
+    return "none"
+
+
+# --------------------------------------------------------------------------
 # Daily flags (for the future dim_date build in Phase 3)
 # --------------------------------------------------------------------------
 
@@ -280,12 +370,14 @@ class DailyFlags:
     date: date
     is_public_holiday: bool
     is_bank_holiday: bool | None
+    is_private_sector_holiday: bool
     is_weekend: bool
     is_long_weekend: bool
     is_songkran_7days: bool
     is_newyear_7days: bool
     is_holiday_eve: bool
     days_to_next_holiday: int | None
+    covid_disruption_level: str
 
 
 def _non_working_runs(days: list[date], non_working: set[date]) -> dict[date, tuple[date, date]]:
@@ -327,6 +419,7 @@ def build_daily_flags(
     public_holidays: set[date],
     bank_holidays: set[date],
     bank_holiday_known_years: set[int],
+    private_sector_holidays: set[date],
 ) -> list[DailyFlags]:
     """Derive per-day flags for every date in [start, end] inclusive.
 
@@ -334,6 +427,12 @@ def build_daily_flags(
     holiday source data (2025-2026 per CLAUDE.md) - is_bank_holiday is
     None (not False) for any other year, since absence of data is not the
     same as absence of a bank holiday.
+
+    `private_sector_holidays` (Labour Day and its in-lieu dates) is
+    intentionally NOT folded into `public_holidays` for the is_long_weekend
+    / is_holiday_eve / days_to_next_holiday computation below -- it is
+    absent from the DGA calendar those are meant to reflect, and is
+    exposed only via its own `is_private_sector_holiday` flag.
     """
     days = [start + timedelta(days=i) for i in range((end - start).days + 1)]
     non_working = {d for d in days if d.weekday() >= 5 or d in public_holidays}
@@ -363,12 +462,14 @@ def build_daily_flags(
                 date=d,
                 is_public_holiday=d in public_holidays,
                 is_bank_holiday=is_bank_holiday,
+                is_private_sector_holiday=d in private_sector_holidays,
                 is_weekend=d.weekday() >= 5,
                 is_long_weekend=is_long_weekend,
                 is_songkran_7days=is_songkran,
                 is_newyear_7days=is_newyear,
                 is_holiday_eve=is_holiday_eve,
                 days_to_next_holiday=_days_to_next_holiday(d, public_holidays, sorted_public),
+                covid_disruption_level=covid_disruption_level(d),
             )
         )
     return results
