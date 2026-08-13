@@ -443,7 +443,7 @@ Province counts: accidents 77 ✅ · rainfall 77 ✅ · registration 77 ✅ · *
 | Problem | Evidence | Fix |
 |---|---|---|
 | Coordinates outside Thailand | lat outside 5–21 in 5 rows, lon outside 97–106 in 10 rows, overlapping in 5 rows → 10 distinct rows affected | null + `is_geo_valid` flag |
-| BOM `\ufeff` | every CSV | `encoding='utf-8-sig'` |
+| BOM `\ufeff` | **5 of 6 CSVs \u2014 not "every CSV" as previously stated, corrected during Phase 1 verification pass.** `stt_car_fuel_at_25690228.csv` has no BOM (`encoding='utf-8'`, confirmed both via `profile_file_metadata()` and a raw byte check \u2014 starts `e0 b8 9b`, not `ef bb bf`); the other 5 (`thailand_accidents_2019_2026_combined.csv`, `thailand_rainfall_2021_2026_combined.csv`, `thailand_flood_risk_areas.csv`, `thailand_heavy_rain_R35mm.csv`, `car_registered_new_2565_2569_combined.csv`) all do | detect BOM per file (`profile_file_metadata` already does), don't hard-code `utf-8-sig` for every read |
 | Typo in header | `Foreast_Month` | rename map |
 | Buddhist vs Gregorian year | registration 2565–2569 | `CE = BE − 543` |
 | Rainfall has 6 rows per province-month | lead 0–5 | ⚠️ **not duplicates** — pivot to `rain_lead0..5` |
