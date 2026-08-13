@@ -138,11 +138,48 @@ road-risk-intelligence/
 
 ---
 
-## 6. Known data-quality problems (17, all verified against the real files)
+## 6. Known data-quality problems (19, all verified against the real files)
 
-Fix in this order.
+Full investigation write-ups, corrections, and reasoning for every problem below are in
+[docs/data_quality_findings.md](docs/data_quality_findings.md) — **read that before touching any
+related Phase 2 code.** This section keeps only a one-line summary per problem plus the numbers
+Phase 2 code implements directly against (reconciliation gates, per-agency thresholds, the P1
+format-per-file table).
 
-### 🔴 P1 — Three date formats mixed in one column (fix before anything else)
+Fix in this order: P1 → P2 → P3 → P4 → P5 → P6 → P7.
+
+| # | Problem | Fix direction |
+|---|---|---|
+| P1 | Three date formats mixed in one column, detected **per file** not per row | mandatory safety net below; per-agency thresholds, not one global number |
+| P2 | Two time formats — clock string vs. Excel day fraction; `0:00` ×219 may be "unknown" | parse float in [0,1) as fraction × 24; check `0:00` against report time |
+| P3 | Schema drift — 4 genuine twin-column pairs; 5th pair (`บริเวณที่เกิดเหตุ`/`บริเวณที่เกิดเหตุอื่น`) is **not** a twin, still unresolved | coalesce the 4 (zero row-overlap, verified); Phase 2 investigates the 5th |
+| P4 | Inconsistent categories — 120/152/89 distinct values across 3 columns | committed mapping tables; never fuzzy-match alone |
+| P5 | Duplicates — 82 exact rows + 1,702 excess rows from 1,641 `ACC_CODE` groups; `ACC_CODE` null 17.3% | surrogate key; harmonize taxonomy **before** dedup (order matters, see findings doc) |
+| P6 | Province names mismatched across sources (flood 75, TAT 78 vs. 77 canonical) | resolved — `config/mappings/`, 100% match verified (Phuket/Ranong → Unknown Member for flood; TAT junk value documented) |
+| P7.1 | Coordinates outside Thailand, 10 rows | null + `is_geo_valid` flag |
+| P7.2 | BOM present on 5 of 6 CSVs, not all (corrected from an earlier wrong claim) | detect BOM per file, don't hard-code `utf-8-sig` |
+| P7.3 | Header typo `Foreast_Month` | rename map |
+| P7.4 | Buddhist vs. Gregorian year (registration file) | `CE = BE − 543` |
+| P7.5 | Rainfall has 6 rows per province-month | **not duplicates** — pivot to `rain_lead0..5` |
+| P7.6 | TAT coordinates embedded in a string | split, cast, validate bounds |
+| P7.7 | ID overflow — `ATT_ID` 17 digits, float/int mix | read everything as string first |
+| P7.8 | Injury totals mismatch, 9,872 rows (6.1%) — 100% in `accident2019.csv`, breakdown never captured that year | flag, don't impute — **policy: two severity indices, see §9 Measures** |
+| P7.9 | `วันที่รายงาน` null in 78 rows (74 in incomplete `accident2026.csv`, 4 in `accident2023.csv`) | contract asserts non-null and fails per-row; don't loosen to pass |
+| P7.10 | `วันที่รายงาน` = literal `"//"` (not null, not a date) in 4 rows, `accident2022.csv` | treat as unparseable, same as null |
+| P7.11 | Incomplete periods — 2026 has ~4 months of data | exclude from trend analysis; use as holdout |
+| P7.12 | Registration nulls — 697 rows, both count and fuel null | fill 0 (province has none of that type) |
+| P7.13 | Agency coverage bias — Highways 92.6% / Rural Roads 5.8% / Expressway 1.6% | cannot be fixed → document as a limitation, expose an agency filter in the dashboard |
+
+### Deliberately NOT fixed
+- **Don't impute missing injury counts** — inventing casualty numbers corrupts the core measure
+- **Don't remove severe outliers** (one crash killed 23 people) — tail events are exactly what
+  bankrupts insurers; they must stay
+- **Don't try to correct agency coverage bias** — state it as a limitation instead
+
+### Numbers Phase 2 code implements directly against
+
+**P1 per-file date format** (detect per `source_file`, not per row — see findings doc for the
+"zero DMY evidence" proof this is sound):
 
 | source_file | Format | Unambiguous rows | Ambiguous rows |
 |---|---|---|---|
@@ -155,72 +192,27 @@ Fix in this order.
 | accident2025 | **Excel serial** | 23,715 | 0 |
 | accident2026 | **DD/MM/YYYY** | 4,760 | 3,978 |
 
-**Approach:** detect format **per file** (not per row) using rows where one component > 12, then apply that
-format to the ambiguous rows in the same file. Excel serials use `origin = 1899-12-30`.
-Verified: no single file mixes DMY and MDY.
+**Reconciliation gates** (two separate checks, never collapsed to one number — see P5 in the
+findings doc for why): **Gate 1** (post-Extract, pre-dedup) = 161,307 accidents · 21,814 fatalities.
+**Gate 2** (post-Load, post-dedup) = 159,605 accidents (1,702 fewer) · 21,497 fatalities (317 fewer).
 
-**Mandatory 3-layer safety net:**
-1. Parsed year **must equal the existing `ปีที่เกิดเหตุ` column** — a single mismatch fails the pipeline
-2. `accident_date ≤ report_date`, and the gap must be ≤ 90 days
-3. Day-of-month histogram must be flat — a wrong parse shows a spike on days 1–12
+**Per-agency report-lag thresholds** (safety net #2's upper bound — p99 of each agency's own
+distribution, not one global number; see P1 in the findings doc for why one number is wrong):
 
-### 🔴 P2 — Two time formats
-String `21:10` mixed with Excel day fractions `0.375` (=09:00), `0.625` (=15:00).
-If it parses as a float in [0,1), multiply by 24. `0:00` appears 219 times — may be a
-"time unknown" placeholder; check against the report-time column before treating it as midnight.
-
-### 🔴 P3 — Schema drift (twin columns)
-| Old name | New name | Null % |
+| Agency | n | p99 threshold (days) |
 |---|---|---|
-| `รถยนต์นั่งส่วนบุคคล` | `รถยนต์นั่งส่วนบุคคล/รถยนต์นั่งสาธารณะ` | 94.6 |
-| `รถบรรทุกไม่เกิน10ล้อ` | `รถบรรทุกมากกว่า6ล้อไม่เกิน10ล้อ` | 94.6 |
-| `รถบรรทุกมากกว่า10ล้อ` | `รถบรรทุกมากกว่า10ล้อ(รถพ่วง)` | 94.6 |
-| `บริเวณที่เกิดเหตุ` | `บริเวณที่เกิดเหตุอื่น` | 94.8 |
-| `รถอื่นๆ` | `อื่นๆ` | 94.6 |
+| กรมทางหลวง (Highways, 92.6%) | 149,318 | 393 |
+| กรมทางหลวงชนบท (Rural Roads) | 9,302 | 235 |
+| การทางพิเศษแห่งประเทศไทย (Expressway) | 2,604 | 1,219 |
 
-⚠️ **Do not drop these for being >90% null.** They are null *in blocks by source year*, not at
-random — different years used different column names. **Coalesce them.**
-
-### 🟠 P4 — Inconsistent categories
-`มูลเหตุสันนิษฐาน` has 120 distinct values, should collapse to ~20.
-`ลักษณะการเกิดเหตุ` 152 → ~15. `บริเวณที่เกิดเหตุ` 89 → ~12.
-Example: `ขับรถเร็วเกินอัตรากำหนด` (99,967) and `ขับรถเร็วเกินอัตราที่กำหนด` (14,636) are the
-same thing — combined 114,603 (71% of all cases).
-Use committed mapping tables. **Never rely on automatic fuzzy matching alone** — it will merge
-"speeding" with "reckless driving", which are different causes.
-
-### 🟠 P5 — Duplicates
-- 82 fully identical rows → safe to drop
-- 1,702 duplicate `ACC_CODE` → ⚠️ investigate first; across different years the code is reused,
-  so the real key is `(ACC_CODE, year)`
-- `ACC_CODE` is null in 17.3% of rows → **cannot be the primary key**; use a surrogate key
-
-### 🟠 P6 — Province names don't match across sources
-Accidents `ลพบุรี` · flood `จ.นนทบุรี` (prefix) · R35mm `Bangkok` (English) · registration `กระบี่`
-Province counts: accidents 77 ✅ · rainfall 77 ✅ · registration 77 ✅ · **flood 75** ❌ · **TAT 78** ❌
-
-### 🟡 P7 — Remaining
-| Problem | Evidence | Fix |
-|---|---|---|
-| Coordinates outside Thailand | lat outside 5–21: 5 rows; lon outside 97–106: 10 rows | null + `is_geo_valid` flag |
-| BOM `\ufeff` | every CSV | `encoding='utf-8-sig'` |
-| Typo in header | `Foreast_Month` | rename map |
-| Buddhist vs Gregorian year | registration 2565–2569 | `CE = BE − 543` |
-| Rainfall has 6 rows per province-month | lead 0–5 | ⚠️ **not duplicates** — pivot to `rain_lead0..5` |
-| TAT coordinates embedded in a string | `"7.376891, 99.6734393"` | split, cast, validate bounds |
-| ID overflow | `ATT_ID` is 17 digits; `9637.0` float/int mix | read everything as string first |
-| Injury totals | check `serious + minor == total` | flag mismatches, don't silently fix |
-| Incomplete periods | 2026 has 8,738 rows (~4 months) | exclude from trends; use as holdout |
-| Registration nulls | 697 rows with both count and fuel null | fill 0 (province has none of that type) |
-| **Coverage bias** | Highways Dept 149,327 (92.6%) · Rural Roads 9,302 · Expressway 2,678 | **cannot be fixed** → document as a limitation, expose an agency filter in the dashboard |
-
-### ⛔ Deliberately NOT fixed (equally important to document)
-- **Don't impute missing injury counts** — inventing casualty numbers corrupts the core measure
-- **Don't remove severe outliers** (one crash killed 23 people) — tail events are exactly what
-  bankrupts insurers; they must stay
-- **Don't try to correct agency coverage bias** — state it as a limitation instead
+**Mandatory safety net (P1, 4 layers):**
+1. Parsed year must equal the existing `ปีที่เกิดเหตุ` column
+2. `accident_date ≤ report_date`, gap ≤ the row's own agency's p99 threshold (above)
+3. Day-of-month histogram must be flat
+4a. Duplicate-group rows sharing an identical raw date string must parse to the same date
 
 ---
+
 
 ## 7. Data limitations requiring stated assumptions
 
@@ -267,11 +259,32 @@ Requires `docs/simulation_assumptions.md`, attached to the report.
 - Additive measures: `accident_count` (=1), `fatality_count`, `serious_injury_count`,
   `minor_injury_count`, `total_injury_count`, `vehicle_involved_count`, `pedestrian_count`,
   `reporting_lag_days`
+- `has_injury_breakdown` (boolean) — **false for all `accident2019.csv` rows** (`serious_injury_count`/
+  `minor_injury_count` never captured that year, see P7/§6), true elsewhere. Makes the 2019 gap
+  explicit on every row rather than letting a query silently average across it. Drives which severity
+  index is computable — see §9 Measures.
 - ⚠️ `total_injury_count` is derived — never sum it alongside its two components
 - ⚠️ `LATITUDE`/`LONGITUDE` are non-additive — never sum or naively average
 
-**Reconciliation targets (full file, 2019–2026):** 161,307 accidents · 21,814 fatalities ·
-134,313 total injuries · 248,825 vehicles involved
+**DQ Gates (referenced throughout §6/§9) — two different checkpoints, not interchangeable:**
+- **Gate A** — row-level validity at ingest (e.g. safety net #2's per-agency report-lag threshold, §6).
+- **Gate B** — completeness/referential checks after transform/load (e.g. the 83-row unparsed-row
+  reconciliation in P1/§6). **New Gate B rule: `severity_index_fine` must never be computed for a row
+  where `has_injury_breakdown` is false** — enforced as a pipeline check, not a filter buried in a
+  downstream query.
+
+**Reconciliation — two separate gates (owner-requested framing, see P5). Both must be checked; they
+catch different classes of error, so collapsing them to one number loses a check:**
+
+- **Gate 1 — post-Extract (full file, 2019–2026, pre-dedup):** 161,307 accidents · 21,814 fatalities ·
+  134,313 total injuries · 248,825 vehicles involved. Proves nothing was lost reading the raw files in.
+- **Gate 2 — post-Load (post-dedup, 1 row per `ACC_CODE` group):** 159,605 accidents (1,702 fewer) ·
+  21,497 fatalities (317 fewer, exact — casualty counts agree 100% within every duplicate group, so
+  this number does not depend on which row of a group is kept). Injury/vehicle totals post-dedup not
+  yet computed. Proves dedup removed exactly the intended rows, no more and no less.
+
+Neither gate "is the real target" to the exclusion of the other — Extract and Load are different
+pipeline stages with different failure modes to catch. Do not silently collapse to one number.
 
 ### `fact_underwriting_monthly`
 - **Grain:** *one month × one province × one vehicle group × one cover class* (~92,400 rows)
@@ -306,8 +319,30 @@ Requires `docs/simulation_assumptions.md`, attached to the report.
 | BQ7 | If we reprice per the model, how much does the portfolio improve, and what lapse risk does that create? |
 | **BQ8** | **Do high-EV-share provinces show higher severity? Is a separate EV rating factor warranted?** |
 
-**Core measures:** Accident Count · Claim Frequency · Severity Index · Fatality Rate ·
-Pure Premium · Loss Ratio
+### Measures
+
+**Accident Count · Claim Frequency · Fatality Rate · Pure Premium · Loss Ratio** — as usual.
+
+**Severity Index — two versions, not one (decided 2026-08-14).** P7/§6 found `accident2019.csv`
+never captured the serious/minor injury breakdown — only fatalities and the total. A single
+three-tier severity formula is uncomputable for all 19,194 rows of 2019. Rather than drop the year:
+
+- **`severity_index_coarse`** = `(fatalities × W_f + total_injuries × W_i) / accidents` —
+  computable for **all years, 2019–2026**. **Primary measure for all cross-year work** (BQ1, BQ3,
+  BQ6) — anything comparing across years uses this one.
+- **`severity_index_fine`** = the original three-tier formula (fatalities / serious injuries / minor
+  injuries weighted separately) — computable **2020–2026 only**. Use where the extra resolution
+  matters, and **always state the restricted window** when reporting it.
+  (Weight values for both — `W_f`, `W_i`, and the fine formula's per-tier weights — are calibrated
+  against OIC reference severity costs in Phase 5, §7.3; not invented here.)
+- **Why keep 2019 rather than drop it:** it is the project's only pre-COVID year. Dropping it would
+  leave every remaining baseline (2020 on) contaminated by pandemic-era travel/reporting effects with
+  nothing un-affected to compare against.
+- **`has_injury_breakdown`** (boolean, `fact_accident`, §8) makes the gap explicit on every row.
+  **Gate B**: `severity_index_fine` is never computed where this is false (§8).
+- **Phase 5 task**: compute both indices over the 2020–2025 window (where both are available) and
+  report their correlation. This quantifies how much resolution `severity_index_coarse` loses —
+  turning "we use two measures" from a compromise into a documented, measured methodological choice.
 
 ---
 
@@ -358,11 +393,11 @@ should say "we tested three approaches and chose on evidence."
 
 | Phase | Work | Status | Notes |
 |---|---|---|---|
-| 1 | Scaffold + holiday backfill + province master + profiling | ⬜ not started | |
+| 1 | Scaffold + holiday backfill + province master + profiling + data contracts | ✅ **approved** | Tasks 0-5 complete: git/scaffold, holiday backfill, province master (77, 100% matched), full raw-file profiling (`notebooks/01_data_profiling.ipynb`), `src/rri/contracts/raw.py` (pandera). 19 P1-P7 problems verified against real data (grew from 17 as this phase's own verification passes surfaced 2 new ones — the `"//"` report-date placeholder and the BOM claim error); several corrected from their original draft (P1 safety net #4, P5 root cause, P3 pair 5, the 90-day→per-agency threshold). Full write-ups moved to `docs/data_quality_findings.md`; §6 is now a summary. Nothing cleaned yet — Phase 2 starts from here. |
 | 2 | ETL: extract + clean (17 problems) | ⬜ | |
 | 3 | Build warehouse + DQ gates | ⬜ | |
 | 4 | Simulated policy portfolio | ⬜ | |
-| 5 | Features + GLM / LightGBM baseline | ⬜ | |
+| 5 | Features + GLM / LightGBM baseline | ⬜ | Includes the severity-index correlation task (§9 Measures): compute `severity_index_coarse` and `severity_index_fine` over 2020–2025 and report their correlation |
 | 6 | Neural net + forecast | ⬜ | |
 | 7 | Streamlit dashboard (Thai UI) | ⬜ | |
 | 8 | AI insight + verifier | ⬜ | |
@@ -376,3 +411,6 @@ should say "we tested three approaches and chose on evidence."
 | 2026-08-11 | Dashboard | Streamlit, Thai UI | can call ML and Claude API live |
 | 2026-08-11 | Dropped data | `banks.json`, `tat_*_clean.csv` | no join key / exact duplicate |
 | 2026-08-11 | Portfolio | Simulated, but claims derived from real accidents | avoids circular reasoning |
+| 2026-08-13 | Safety net #2 threshold | Per-agency p99 (393/235/1,219 days for Highways/Rural Roads/Expressway), not a single global number, not the originally-drafted 90 | 90 was invented at design time (would reject 28.6% of rows); a single global 398 fixed that but conflated two different jobs (Gate A validity wants loose, discrimination wants tight) and under/over-flagged minority agencies (Rural Roads 0.10% vs. Expressway 10.87% under global 398) |
+| 2026-08-13 | Data contracts | `src/rri/contracts/raw.py` asserts only proven facts (gates, twin columns, per-file date format, 77 provinces); no date-format shape assertion on `วันที่เกิดเหตุ`/`วันที่รายงาน` | 3 date formats coexist by design (P1); contract failures (coords, injury totals, 78 null report-dates) are the intended deliverable, not bugs to fix |
+| 2026-08-14 | Severity Index / 2019 handling | Two measures — `severity_index_coarse` (all years, primary) and `severity_index_fine` (2020-2026 only) — keep 2019, don't drop it | `accident2019.csv` has no serious/minor breakdown (P7); 2019 is the only pre-COVID year, so dropping it contaminates every remaining baseline |

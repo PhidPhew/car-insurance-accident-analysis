@@ -1,0 +1,36 @@
+# NOTE: ruff and mypy revs here MUST match the exact pins in pyproject.toml
+# (dependency-groups.dev). A version mismatch between the local venv and this
+# hook makes ruff-format flip a file's style back and forth on every commit -
+# a real reproducibility failure, not just an annoyance. Bump both together.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.2
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v2.3.0
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - pydantic-settings
+          - pandas-stubs
+          - types-requests
+          - structlog
+          - pytest
+          - holidays
+          - polars
+        pass_filenames: false
+        args: []
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: [--maxkb=5000]
+      - id: check-merge-conflict

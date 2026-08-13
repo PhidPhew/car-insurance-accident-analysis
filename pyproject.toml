@@ -1,0 +1,75 @@
+[project]
+name = "rri"
+version = "0.1.0"
+description = "Weather-Aware Road Risk Intelligence for Motor Insurance — Data Mining Group Assignment #1"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "SiamShield Insurance Analytics Team" }]
+
+dependencies = [
+    "polars>=1.9",
+    "pandas>=2.2",
+    "pyarrow>=17.0",
+    "duckdb>=1.1",
+    "pandera>=0.20",
+    "typer>=0.12",
+    "structlog>=24.4",
+    "pydantic-settings>=2.5",
+    "python-dateutil>=2.9",
+    "requests>=2.32",
+    "holidays>=0.102",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=5.0",
+    "ruff==0.16.2",
+    "mypy==2.3.0",
+    "pre-commit>=3.8",
+    "jupyter>=1.1",
+    "ipykernel>=6.29",
+    "pandas-stubs>=2.2",
+    "types-requests>=2.32",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/rri"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "N"]
+ignore = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["rri", "config"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+mypy_path = "src"
+explicit_package_bases = true
+files = ["src/rri", "config", "tests", "scripts"]
+
+[[tool.mypy.overrides]]
+module = ["pandera.*", "duckdb.*", "holidays.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "."]
+
+[tool.coverage.run]
+source = ["src/rri"]
+
+[tool.coverage.report]
+show_missing = true
