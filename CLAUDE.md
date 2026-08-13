@@ -209,73 +209,94 @@ This proves the split is exhaustive over the real data, not a sample or an appro
 ⚠️ **The 90-day threshold in safety net #2 was invented at design time, before looking at any data —
 it had no empirical basis and turned out to be badly wrong.** Profiled `report_date − accident_date`
 across all 8 files (`compute_report_lag_days()` / `summarize_report_lag()` /
-`report_lag_quantiles_by_group()` in `src/rri/utils/profiling.py`), 161,224 of 161,307 rows parseable
-(83 rows fail to parse under their file's format and are excluded, immaterial):
+`report_lag_quantiles_by_group()` in `src/rri/utils/profiling.py`), 161,224 of 161,307 rows parseable.
+
+✅ **All 83 unparsed rows are now individually accounted for (row-count reconciliation, owner-requested):**
+78 have a null `วันที่รายงาน` (see P7) + 1 is the already-documented `accident2020.csv` stray Excel-serial
+row (`ACC_CODE 3810244`) + **4 newly found: `accident2022.csv` has `วันที่รายงาน` = the literal string
+`"//"`** (`ACC_CODE` 7380247, 6242202, 7332590, 7551750) — not null, not a date, a garbage placeholder that
+survives the null-values filter because `"//"` isn't in `null_values=['', 'NA', 'N/A', '-']`. All 4 also
+have `เวลาที่รายงาน` (report time) null. 78 + 1 + 4 = 83, exactly. New finding, not previously in P1-P7 —
+added as its own line in P7 below.
 
 | Stat | Value |
 |---|---|
 | Median | 45 days |
 | p95 | 284 days |
-| p99 | **398 days** |
+| p99 (global) | 398 days |
 | Max | 1,254 days |
 | Rows with gap > 90 days | **46,179 / 161,224 = 28.6%** |
 | Rows with negative gap (report before accident — a different anomaly, not addressed here) | 2,696 |
 
 **28.6% of all rows would fail a hard 90-day gate.** That is not a tail of outliers — treating gap > 90
-as invalid at that scale would silently reject a large slice of genuinely valid data, exactly the
-failure mode flagged when this was raised: "a threshold that's too tight will reject valid data at
-scale."
+as invalid at that scale would silently reject a large slice of genuinely valid data.
 
-**The distribution differs materially by both year and agency** — a single global number is a real
-simplification, noted here rather than hidden:
-- **By year (`source_file`):** p95 ranges from 57 days (`accident2026`, still-incomplete year) to 368
-  days (`accident2020`); p99 from 72 to 450. Earlier years consistently show longer lags than 2024–2026,
-  suggesting either slower reporting/finalization workflows in earlier years or a data-capture change —
-  not investigated further here.
-- **By agency (`หน่วยงาน`):** Rural Roads Dept. (`กรมทางหลวงชนบท`) is tightest — p95 = 110, p99 = 235.
-  Highways Dept. (`กรมทางหลวง`, 92.6% of all rows) sits in the middle — p95 = 286, p99 = 393. Expressway
-  Authority (`การทางพิเศษแห่งประเทศไทย`) is far wider — **p95 = 986, p99 = 1,219** — over three years.
-  This is consistent with the known agency coverage-bias limitation (P7) and suggests `report_date` may
-  mean something closer to "case finalized" for this agency rather than "initially filed." **Not
-  addressed now — a per-agency threshold is a reasonable Phase 2 refinement, not implemented here.**
+🔴 **Correction: a single global threshold (398, or any other one number) is wrong, not just a
+simplification — it does two jobs that need opposite properties, and one number can't serve both.**
+Gate A (row validity) wants a **loose** threshold so valid data isn't rejected → p99 is right for that.
+Discriminating the 448 transposed pairs wants a **tight** threshold to actually decide between two
+candidates → a loose threshold makes both candidates look plausible more often, which is why
+resolved-unique dropped 222 → 138 when the threshold widened from 90 to 398. **310 of 448 undecidable is
+worse than where the investigation started.** The distribution differs sharply enough by agency that a
+per-agency threshold fixes both problems at once instead of trading one off against the other:
 
-**Decision: safety net #2's upper bound is set to 398 days (p99 of the observed distribution), not
-90.** This accepts ~1% of legitimate rows sitting past the bound by design (that is what a p99 threshold
-means) in exchange for not rejecting the 28.6% that a 90-day bound would have wrongly caught. This is a
-single global number despite the agency/year variance above — documented as a simplification, not a
-final answer.
+| Agency | n | p95 | **p99 (own threshold)** | Rows over **global 398** | Rows over **own p99** |
+|---|---|---|---|---|---|
+| กรมทางหลวง (Highways, 92.6%) | 149,318 | 286 | 393 | 1,269 (0.85%) | 1,454 (0.97%) |
+| กรมทางหลวงชนบท (Rural Roads) | 9,302 | 110 | **235** | 9 (**0.10%**) | 90 (0.97%) |
+| การทางพิเศษแห่งประเทศไทย (Expressway) | 2,604 | 986 | **1,219** | 283 (**10.87%**) | 24 (0.92%) |
 
-**Resolving the 448 — use safety net #2 (accident_date ≤ report_date, gap ≤ 398 days) as a discriminator.**
-For each pair, both candidate dates (from the two transposed raw strings) are tested against that rule
-using each row's own report date; a candidate is valid only if every row carrying that raw string
-passes (this correctly covers the 23 groups that have 3 rows — 2 distinct dates, one repeated — not
-just the simple 2-row case). Implemented as `discriminate_transposed_date_pairs()`, run against the real
-`accident2023.csv` data, **re-run after the threshold correction — the split shifted as expected:**
+**This is the precision problem made concrete.** The global 398-day threshold badly under-flags Rural
+Roads (0.10% vs. the 0.97% its own distribution says should be outliers — genuinely anomalous Rural-Roads
+rows slip through as "valid") and badly over-flags Expressway (10.87% vs. 0.92% — ordinary Expressway
+rows get wrongly treated as invalid, consistent with the known agency coverage-bias limitation, P7, and
+suggesting `report_date` may mean something closer to "case finalized" than "initially filed" for this
+agency). Per-agency p99 thresholds bring every agency to ~1% by construction, the correct and consistent
+behavior for a percentile-based bound. **Decision: safety net #2 uses per-agency thresholds (393 / 235 /
+1,219 days), not one global number.** Implemented as `count_rows_over_group_thresholds()` for Gate A and
+a `max_report_lag_days: dict[str, int]` + `threshold_group_column` option on
+`discriminate_transposed_date_pairs()` (per-row group lookup, `KeyError` on any unmapped group rather than
+a silent fallback).
 
-| Outcome | Count @90 days (invented) | Count @398 days (p99, data-derived) | Meaning |
+**Resolving the 448 — safety net #2 with per-agency thresholds, re-run:**
+
+| Outcome | @90 (invented) | @398 global (p99, data-derived) | @per-agency p99 |
 |---|---|---|---|
-| Resolved uniquely | 222 | **138** | exactly one candidate passes → that's the true date, the other row is the keying error |
-| Both valid | 196 | **310** | genuinely undecidable from this evidence — flag, don't guess |
-| Neither valid | 30 | **0** | — |
-| **Total** | **448** | **448** | matches `find_transposed_date_string_pairs()` exactly (425 two-row + 23 three-row groups) |
+| Resolved uniquely | 222 | 138 | **156** |
+| Both valid | 196 | 310 | **292** |
+| Neither valid | 30 | 0 | **0** |
+| **Total** | **448** | **448** | **448** |
 
-**All 30 "neither valid" cases at the old threshold turn out to be legitimately long reporting lags, not
-corrupted rows** — confirms the concern that motivated re-checking the threshold in the first place: at
-398 days every one of them has at least one valid candidate. The cost of the wider, correct threshold is
-weaker discriminating power (fewer pairs resolve uniquely — 138 vs. 222 — because a 398-day window makes
-both candidates plausible more often), not a bug; a looser, honest bound necessarily discriminates less
-than a tight, wrong one appeared to.
+Per-agency thresholds recover part of the discriminating power lost when the threshold was widened from
+90 to 398 (138 → 156 resolved), without reintroducing the 90-day threshold's false "neither valid"
+signal (still 0) — confirming both Gate A precision and discrimination improve together, as expected once
+the two jobs use the right threshold for each agency instead of one number doing both.
 
-**Phase 2 design note (not implemented yet — for whoever builds the real parser):** for the 310 groups
-(620 rows) that safety net #2 cannot resolve, add a `date_certainty` field (`certain` / `ambiguous`) to
-`fact_accident` rather than silently picking a date. 448 of 23,841 rows in `accident2023.csv` is ~1.9% —
-small, but a date wrong by months is exactly the kind of error that would distort BQ3 (holiday-period
-risk analysis), so it must be flagged, not guessed.
+**Still 292 undecidable pairs — a binary pass/fail test discards information a likelihood comparison
+would keep. Designed now, for Phase 2 implementation, not built yet:**
+for each candidate date `c`, compute `lag(c) = report_date − c` using the row's own report date. A
+candidate is *hard-invalid* only if `lag(c) < 0` or `lag(c)` exceeds a wide sanity ceiling (e.g. that
+agency's observed max, not its tight p99 — the ceiling here is "physically implausible," not "unusual").
+Among the surviving candidates, score by `deviation(c) = |lag(c) − agency_median_lag|` and pick the
+smaller one; record `margin = deviation(loser) − deviation(winner)`, normalized by the agency's IQR (or
+MAD) so agencies with naturally wide spread don't automatically look "confident." This always picks a
+winner when at least one candidate is hard-valid (converting most of the 292 into decisions instead of
+leaving them all flagged), while the margin gives a continuous confidence score to feed the
+`date_certainty` field below — `certain` for a wide margin, `low_confidence` for a narrow one, `flagged`
+only when zero candidates are hard-valid. Not implemented in Phase 1 — this is a design note for whoever
+builds the Phase 2 parser, per instruction.
+
+**Phase 2 design note (not implemented yet):** for groups that remain undecided even after the
+likelihood-comparison design above, add a `date_certainty` field (`certain` / `low_confidence` /
+`ambiguous`) to `fact_accident` rather than silently picking a date. 448 of 23,841 rows in
+`accident2023.csv` is ~1.9% — small, but a date wrong by months is exactly the kind of error that would
+distort BQ3 (holiday-period risk analysis), so it must be flagged, not guessed.
 
 **Mandatory safety net (4 layers, #4 corrected to 4a):**
 1. Parsed year **must equal the existing `ปีที่เกิดเหตุ` column** — a single mismatch fails the pipeline
-2. `accident_date ≤ report_date`, and the gap must be ≤ **398 days** (p99 of the observed distribution —
-   see above; NOT 90, which was an invented design-time guess that would reject 28.6% of all rows)
+2. `accident_date ≤ report_date`, and the gap must be ≤ the row's **own agency's p99** (393 / 235 / 1,219
+   days for Highways / Rural Roads / Expressway — see table above; NOT one global number, and NOT the
+   originally-invented 90, which would reject 28.6% of all rows)
 3. Day-of-month histogram must be flat — a wrong parse shows a spike on days 1–12
 4a. **Duplicate-group rows sharing an identical raw date string must parse to the same calendar date**
    (day resolution). Rows in a duplicate group whose raw strings are transposed digits are expected to
@@ -428,8 +449,9 @@ Province counts: accidents 77 ✅ · rainfall 77 ✅ · registration 77 ✅ · *
 | Rainfall has 6 rows per province-month | lead 0–5 | ⚠️ **not duplicates** — pivot to `rain_lead0..5` |
 | TAT coordinates embedded in a string | `"7.376891, 99.6734393"` | split, cast, validate bounds |
 | ID overflow | `ATT_ID` is 17 digits; `9637.0` float/int mix | read everything as string first |
-| Injury totals | check `serious + minor == total` — **quantified (Task 5 contract): 9,872 / 161,307 rows (6.1%) mismatch** | flag mismatches, don't silently fix |
+| Injury totals | check `serious + minor == total` — 9,872 / 161,307 rows (6.1%) mismatch. **Root cause found (owner-requested follow-up), not random error:** 100% of mismatches are `total > serious + minor` (never the reverse — one direction only), and 100% are in `accident2019.csv` specifically (0 mismatches in any other year). **All 19,194 rows in `accident2019.csv` have `ผู้บาดเจ็บสาหัส`/`ผู้บาดเจ็บเล็กน้อย` (serious/minor) null — 100%, not partial** — only `รวมจำนวนผู้บาดเจ็บ` (total) was ever captured that year. The 9,872 figure undercounts the true scope: it only flags the subset of 2019 rows where total > 0 (9,872 of 19,194); the other 9,322 rows "pass" only because null+null happens to equal a total of 0, not because the breakdown exists. This is a P3-style file-level column-omission (the granular breakdown was never collected for 2019), not row-level corruption — 0 rows have all three columns populated but genuinely conflicting | flag mismatches, don't silently fix; do not impute the missing 2019 breakdown |
 | `วันที่รายงาน` (report date) is null in 78 rows | 74 in `accident2026.csv` (still-incomplete year — plausibly not yet formally filed), 4 in `accident2023.csv`. `วันที่เกิดเหตุ` (accident date) is **never** null (0 rows) — found by Task 5's data contract asserting non-null and correctly failing on these 78, not by earlier profiling | contract asserts non-null and reports the failure per-row; do not loosen to nullable just to pass |
+| `วันที่รายงาน` = literal `"//"` (not null, not a date) in 4 rows | All in `accident2022.csv` (`ACC_CODE` 7380247, 6242202, 7332590, 7551750); `เวลาที่รายงาน` (report time) is also null on all 4. Found while reconciling the report-lag row count (161,307 total − 161,224 parsed = 83; 78 explained by the null-report-date row above + 1 by the already-documented `accident2020.csv` Excel-serial stray = 79, leaving exactly these 4 unexplained until now) | treat as unparseable/missing, same as a null; do not coerce `"//"` into a date |
 | Incomplete periods | 2026 has 8,738 rows (~4 months) | exclude from trends; use as holdout |
 | Registration nulls | 697 rows with both count and fuel null | fill 0 (province has none of that type) |
 | **Coverage bias** | Highways Dept 149,327 (92.6%) · Rural Roads 9,302 · Expressway 2,678 | **cannot be fixed** → document as a limitation, expose an agency filter in the dashboard |
@@ -458,7 +480,7 @@ threshold above is the cautionary example of what happens when that rule is brok
 | 77 canonical provinces, zero orphan values (`check_province_normalization`) | ✅ pass | Reuses `rri.cleaning.province.match_province_values` — no duplicated logic |
 | Gate 1 reconciliation: `GATE_1_ACCIDENT_COUNT=161,307`, `GATE_1_FATALITY_COUNT=21,814` | ✅ pass | Constants in code (`check_gate1_reconciliation`), not just prose |
 | Gate 2 reconciliation: `GATE_2_ACCIDENT_COUNT=159,605`, `GATE_2_FATALITY_COUNT=21,497` | not run here | Requires a post-dedup dataframe (`check_gate2_reconciliation`) — ready for Phase 2's warehouse build to call once the ACC_CODE dedup rule is implemented |
-| Injury totals: `serious + minor == total` (`check_injury_totals`) | ❌ fails on 9,872 rows (6.1%) | Newly quantified exact count (P7 previously only said "flag mismatches") |
+| Injury totals: `serious + minor == total` (`check_injury_totals`) | ❌ fails on 9,872 rows (6.1%) | Root cause found (see P7): 100% in `accident2019.csv`, always `total > sum` — that file never captured the serious/minor breakdown |
 
 **Every failure above is a known, already-quantified fact — not a bug in the contract.** The two coordinate
 checks and the gate constants match CLAUDE.md's existing numbers exactly; the report-date-null and
@@ -631,5 +653,5 @@ should say "we tested three approaches and chose on evidence."
 | 2026-08-11 | Dashboard | Streamlit, Thai UI | can call ML and Claude API live |
 | 2026-08-11 | Dropped data | `banks.json`, `tat_*_clean.csv` | no join key / exact duplicate |
 | 2026-08-11 | Portfolio | Simulated, but claims derived from real accidents | avoids circular reasoning |
-| 2026-08-13 | Safety net #2 threshold | 398 days (p99 of measured report-lag), not the originally-drafted 90 | 90 was invented at design time; profiling real data showed a 90-day gate would reject 28.6% of all rows |
+| 2026-08-13 | Safety net #2 threshold | Per-agency p99 (393/235/1,219 days for Highways/Rural Roads/Expressway), not a single global number, not the originally-drafted 90 | 90 was invented at design time (would reject 28.6% of rows); a single global 398 fixed that but conflated two different jobs (Gate A validity wants loose, discrimination wants tight) and under/over-flagged minority agencies (Rural Roads 0.10% vs. Expressway 10.87% under global 398) |
 | 2026-08-13 | Data contracts | `src/rri/contracts/raw.py` asserts only proven facts (gates, twin columns, per-file date format, 77 provinces); no date-format shape assertion on `วันที่เกิดเหตุ`/`วันที่รายงาน` | 3 date formats coexist by design (P1); contract failures (coords, injury totals, 78 null report-dates) are the intended deliverable, not bugs to fix |

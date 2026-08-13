@@ -7863,6 +7863,7 @@ notebook นี้ทำหน้าที่แค่ import → เรีย�
     <span class="n">compute_dedup_impact</span><span class="p">,</span>
     <span class="n">compute_report_lag_days</span><span class="p">,</span>
     <span class="n">count_resolved_by_normalization</span><span class="p">,</span>
+    <span class="n">count_rows_over_lag_threshold</span><span class="p">,</span>
     <span class="n">discriminate_transposed_date_pairs</span><span class="p">,</span>
     <span class="n">find_conflicting_groups</span><span class="p">,</span>
     <span class="n">find_transposed_date_string_pairs</span><span class="p">,</span>
@@ -8563,12 +8564,129 @@ outlier แต่เป็นสัดส่วนขนาดใหญ่ ถ�
 </div>
 </div>
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=13280c6d">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=0f26e861">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
 <div class="jp-InputPrompt jp-InputArea-prompt">In [11]:</div>
+<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="cm-editor cm-s-jupyter">
+<div class="highlight hl-ipython3"><pre><span></span><span class="n">df_with_index</span> <span class="o">=</span> <span class="n">accidents_raw</span><span class="o">.</span><span class="n">with_row_index</span><span class="p">(</span><span class="s2">"rn"</span><span class="p">)</span>
+<span class="n">lagged_with_index</span> <span class="o">=</span> <span class="n">compute_report_lag_days</span><span class="p">(</span>
+    <span class="n">df_with_index</span><span class="p">,</span> <span class="s2">"source_file"</span><span class="p">,</span> <span class="s2">"วันที่เกิดเหตุ"</span><span class="p">,</span> <span class="s2">"วันที่รายงาน"</span><span class="p">,</span> <span class="n">SOURCE_FILE_DATE_FORMAT</span>
+<span class="p">)</span>
+<span class="n">unparsed</span> <span class="o">=</span> <span class="n">df_with_index</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="o">~</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"rn"</span><span class="p">)</span><span class="o">.</span><span class="n">is_in</span><span class="p">(</span><span class="n">lagged_with_index</span><span class="p">[</span><span class="s2">"rn"</span><span class="p">]</span><span class="o">.</span><span class="n">implode</span><span class="p">()))</span>
+
+<span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+    <span class="p">[</span>
+        <span class="p">{</span>
+            <span class="s2">"total_unparsed"</span><span class="p">:</span> <span class="n">unparsed</span><span class="o">.</span><span class="n">height</span><span class="p">,</span>
+            <span class="s2">"null_report_date"</span><span class="p">:</span> <span class="n">unparsed</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"วันที่รายงาน"</span><span class="p">)</span><span class="o">.</span><span class="n">is_null</span><span class="p">())</span><span class="o">.</span><span class="n">height</span><span class="p">,</span>
+            <span class="s2">"non_null_report_date (needs explanation)"</span><span class="p">:</span> <span class="n">unparsed</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span>
+                <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"วันที่รายงาน"</span><span class="p">)</span><span class="o">.</span><span class="n">is_not_null</span><span class="p">()</span>
+            <span class="p">)</span><span class="o">.</span><span class="n">height</span><span class="p">,</span>
+        <span class="p">}</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell-outputWrapper">
+<div class="jp-Collapser jp-OutputCollapser jp-Cell-outputCollapser">
+</div>
+<div class="jp-OutputArea jp-Cell-outputArea">
+<div class="jp-OutputArea-child jp-OutputArea-executeResult">
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[11]:</div>
+<div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
+<div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (1, 3)</small><table border="1" class="dataframe"><thead><tr><th>total_unparsed</th><th>null_report_date</th><th>non_null_report_date (needs explanation)</th></tr><tr><td>i64</td><td>i64</td><td>i64</td></tr></thead><tbody><tr><td>83</td><td>78</td><td>5</td></tr></tbody></table></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=867124e6">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p><strong>161,307 − 161,224 = 83 แถวที่ parse ไม่ได้ — ก่อนหน้านี้อธิบายแค่ 78 แถว (null report date)
+เหลือ 5 แถวที่ยังไม่มีคำอธิบาย</strong> ต้องตรวจให้ครบทุก filter step ตรวจดูว่า 5 แถวนี้คืออะไร:</p>
+</div>
+</div>
+</div>
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=676b010e">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [12]:</div>
+<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="cm-editor cm-s-jupyter">
+<div class="highlight hl-ipython3"><pre><span></span><span class="n">unparsed</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"วันที่รายงาน"</span><span class="p">)</span><span class="o">.</span><span class="n">is_not_null</span><span class="p">())</span><span class="o">.</span><span class="n">select</span><span class="p">(</span>
+    <span class="s2">"ACC_CODE"</span><span class="p">,</span> <span class="s2">"source_file"</span><span class="p">,</span> <span class="s2">"วันที่เกิดเหตุ"</span><span class="p">,</span> <span class="s2">"วันที่รายงาน"</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell-outputWrapper">
+<div class="jp-Collapser jp-OutputCollapser jp-Cell-outputCollapser">
+</div>
+<div class="jp-OutputArea jp-Cell-outputArea">
+<div class="jp-OutputArea-child jp-OutputArea-executeResult">
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[12]:</div>
+<div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
+<div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (5, 4)</small><table border="1" class="dataframe"><thead><tr><th>ACC_CODE</th><th>source_file</th><th>วันที่เกิดเหตุ</th><th>วันที่รายงาน</th></tr><tr><td>str</td><td>str</td><td>str</td><td>str</td></tr></thead><tbody><tr><td>"3810244"</td><td>"accident2020.csv"</td><td>"44178"</td><td>"12/15/2020"</td></tr><tr><td>"7380247"</td><td>"accident2022.csv"</td><td>"02/16/2022"</td><td>"//"</td></tr><tr><td>"6242202"</td><td>"accident2022.csv"</td><td>"08/03/2022"</td><td>"//"</td></tr><tr><td>"7332590"</td><td>"accident2022.csv"</td><td>"05/11/2022"</td><td>"//"</td></tr><tr><td>"7551750"</td><td>"accident2022.csv"</td><td>"12/24/2022"</td><td>"//"</td></tr></tbody></table></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=4de3d8fe">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p><strong>ครบแล้ว ทั้ง 83 แถวมีคำอธิบาย:</strong></p>
+<ul>
+<li><strong>78 แถว</strong>: <code>วันที่รายงาน</code> เป็น null (รายละเอียดข้างบน)</li>
+<li><strong>1 แถว</strong>: <code>ACC_CODE 3810244</code> ใน <code>accident2020.csv</code> — Excel serial ที่ผิดปกติ (บันทึกไว้ใน CLAUDE.md P1
+แล้วตั้งแต่ Task 4)</li>
+<li><strong>4 แถวที่พึ่งพบใหม่</strong>: <code>accident2022.csv</code> มี <code>วันที่รายงาน</code> เป็น string ตัวอักษร <strong><code>"//"</code></strong> ตรง ๆ — ไม่ใช่
+null (ไม่ถูกกรองด้วย <code>null_values=['', 'NA', 'N/A', '-']</code>) แต่ก็ไม่ใช่วันที่จริง เป็น placeholder ขยะ
+ทั้ง 4 แถวนี้ <code>เวลาที่รายงาน</code> (เวลารายงาน) ก็เป็น null ด้วย เพิ่งพบจากการ reconcile จำนวนแถวรอบนี้ ไม่เคย
+บันทึกใน P1-P7 มาก่อน — บันทึกไว้ใน CLAUDE.md P7 แล้วเป็นข้อเท็จจริงใหม่</li>
+</ul>
+<p>78 + 1 + 4 = 83 ตรงเป๊ะ</p>
+</div>
+</div>
+</div>
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=13280c6d">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [13]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="cm-editor cm-s-jupyter">
 <div class="highlight hl-ipython3"><pre><span></span><span class="n">pl</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span>
@@ -8591,7 +8709,7 @@ outlier แต่เป็นสัดส่วนขนาดใหญ่ ถ�
 </div>
 <div class="jp-OutputArea jp-Cell-outputArea">
 <div class="jp-OutputArea-child jp-OutputArea-executeResult">
-<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[11]:</div>
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[13]:</div>
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
 <div><style>
 .dataframe > thead > tr,
@@ -8619,12 +8737,86 @@ outlier แต่เป็นสัดส่วนขนาดใหญ่ ถ�
 <li><strong>ตามหน่วยงาน</strong>: กรมทางหลวงชนบทแคบสุด (p95=110, p99=235) กรมทางหลวง (92.6% ของข้อมูล) อยู่กลาง ๆ
 (p95=286, p99=393) ส่วนการทางพิเศษแห่งประเทศไทยกว้างกว่ามาก (<strong>p95=986, p99=1,219</strong> — เกิน 3 ปี!)
 สอดคล้องกับข้อจำกัดเรื่อง coverage bias ที่รู้อยู่แล้ว (P7) และอาจแปลว่า <code>วันที่รายงาน</code> ของหน่วยงานนี้
-หมายถึง "ปิดเคส" มากกว่า "แจ้งเบื้องต้น" — <strong>ยังไม่สืบสวนต่อ เก็บเป็นข้อสังเกตสำหรับ Phase 2</strong></li>
+หมายถึง "ปิดเคส" มากกว่า "แจ้งเบื้องต้น"</li>
 </ul>
+<h3 id="threshold-%E0%B8%95%E0%B8%B1%E0%B8%A7%E0%B9%80%E0%B8%94%E0%B8%B5%E0%B8%A2%E0%B8%A7-(398)-%E0%B8%97%E0%B8%B3%E0%B8%AB%E0%B8%99%E0%B9%89%E0%B8%B2%E0%B8%97%E0%B8%B5%E0%B9%88-2-%E0%B8%AD%E0%B8%A2%E0%B9%88%E0%B8%B2%E0%B8%87%E0%B8%97%E0%B8%B5%E0%B9%88%E0%B8%95%E0%B9%89%E0%B8%AD%E0%B8%87%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%84%E0%B8%B8%E0%B8%93%E0%B8%AA%E0%B8%A1%E0%B8%9A%E0%B8%B1%E0%B8%95%E0%B8%B4%E0%B8%95%E0%B8%A3%E0%B8%87%E0%B8%82%E0%B9%89%E0%B8%B2%E0%B8%A1%E0%B8%81%E0%B8%B1%E0%B8%99">threshold ตัวเดียว (398) ทำหน้าที่ 2 อย่างที่ต้องการคุณสมบัติตรงข้ามกัน<a class="anchor-link" href="#threshold-%E0%B8%95%E0%B8%B1%E0%B8%A7%E0%B9%80%E0%B8%94%E0%B8%B5%E0%B8%A2%E0%B8%A7-(398)-%E0%B8%97%E0%B8%B3%E0%B8%AB%E0%B8%99%E0%B9%89%E0%B8%B2%E0%B8%97%E0%B8%B5%E0%B9%88-2-%E0%B8%AD%E0%B8%A2%E0%B9%88%E0%B8%B2%E0%B8%87%E0%B8%97%E0%B8%B5%E0%B9%88%E0%B8%95%E0%B9%89%E0%B8%AD%E0%B8%87%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%84%E0%B8%B8%E0%B8%93%E0%B8%AA%E0%B8%A1%E0%B8%9A%E0%B8%B1%E0%B8%95%E0%B8%B4%E0%B8%95%E0%B8%A3%E0%B8%87%E0%B8%82%E0%B9%89%E0%B8%B2%E0%B8%A1%E0%B8%81%E0%B8%B1%E0%B8%99">¶</a></h3><p><strong>Gate A</strong> (ความถูกต้องของแถว) ต้องการ threshold <strong>หลวม</strong> เพื่อไม่ทิ้งข้อมูลถูกต้อง → p99 คือคำตอบที่ถูก
+<strong>การแยกแยะ 448 คู่</strong> ต้องการ threshold <strong>แน่น</strong> เพื่อให้ตัดสินใจได้ → threshold หลวมทำให้ทั้งสองตัวเลือก
+ดูสมเหตุสมผลบ่อยขึ้น (เป็นเหตุผลที่ resolved unique ลดจาก 222 เหลือ 138 ตอนขยาย threshold จาก 90 เป็น 398)
+<strong>310 จาก 448 ตัดสินไม่ได้แย่กว่าจุดเริ่มต้นของการสืบสวนนี้</strong> เพราะการกระจายตัวต่างกันมากตามหน่วยงาน
+(ด้านบน) threshold ต่อหน่วยงานแก้ปัญหาทั้งสองพร้อมกันได้แทนที่จะแลกกัน — คำนวณต่อ:</p>
 <p><strong>ตัดสินใจ: ใช้ p99 = 398 วัน แทน 90 วัน เป็นขอบบนของ safety net #2</strong> — ยอมรับว่าจะมี ~1%
 ของแถวที่ถูกต้องแต่เกินขอบ (ธรรมชาติของ p99) แลกกับการไม่ทิ้ง 28.6% ที่ขอบ 90 วันจะทิ้งผิด ๆ
 เป็นตัวเลขระดับ global เดียว แม้จะรู้ว่ามีความต่างตามปี/หน่วยงาน — บันทึกไว้เป็นข้อจำกัด ไม่ใช่คำตอบสุดท้าย</p>
 <h3 id="%E0%B8%A3%E0%B8%B1%E0%B8%99-safety-net-%232-%E0%B9%83%E0%B8%AB%E0%B8%A1%E0%B9%88%E0%B8%81%E0%B8%B1%E0%B8%9A-448-%E0%B8%84%E0%B8%B9%E0%B9%88-%E0%B8%94%E0%B9%89%E0%B8%A7%E0%B8%A2%E0%B8%82%E0%B8%AD%E0%B8%9A%E0%B9%80%E0%B8%82%E0%B8%95%E0%B8%97%E0%B8%B5%E0%B9%88%E0%B8%9C%E0%B9%88%E0%B8%B2%E0%B8%99%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%95%E0%B8%A3%E0%B8%A7%E0%B8%88%E0%B8%AA%E0%B8%AD%E0%B8%9A%E0%B9%81%E0%B8%A5%E0%B9%89%E0%B8%A7">รัน safety net #2 ใหม่กับ 448 คู่ ด้วยขอบเขตที่ผ่านการตรวจสอบแล้ว<a class="anchor-link" href="#%E0%B8%A3%E0%B8%B1%E0%B8%99-safety-net-%232-%E0%B9%83%E0%B8%AB%E0%B8%A1%E0%B9%88%E0%B8%81%E0%B8%B1%E0%B8%9A-448-%E0%B8%84%E0%B8%B9%E0%B9%88-%E0%B8%94%E0%B9%89%E0%B8%A7%E0%B8%A2%E0%B8%82%E0%B8%AD%E0%B8%9A%E0%B9%80%E0%B8%82%E0%B8%95%E0%B8%97%E0%B8%B5%E0%B9%88%E0%B8%9C%E0%B9%88%E0%B8%B2%E0%B8%99%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%95%E0%B8%A3%E0%B8%A7%E0%B8%88%E0%B8%AA%E0%B8%AD%E0%B8%9A%E0%B9%81%E0%B8%A5%E0%B9%89%E0%B8%A7">¶</a></h3>
+</div>
+</div>
+</div>
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=ec9e0d25">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [14]:</div>
+<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="cm-editor cm-s-jupyter">
+<div class="highlight hl-ipython3"><pre><span></span><span class="n">by_agency</span> <span class="o">=</span> <span class="n">report_lag_quantiles_by_group</span><span class="p">(</span><span class="n">lagged</span><span class="p">,</span> <span class="s2">"หน่วยงาน"</span><span class="p">)</span>
+<span class="n">thresholds_by_agency</span> <span class="o">=</span> <span class="p">{</span><span class="n">row</span><span class="p">[</span><span class="s2">"หน่วยงาน"</span><span class="p">]:</span> <span class="nb">int</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"p99_days"</span><span class="p">])</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">by_agency</span><span class="o">.</span><span class="n">to_dicts</span><span class="p">()}</span>
+
+<span class="n">rows</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="k">for</span> <span class="n">agency</span><span class="p">,</span> <span class="n">own_threshold</span> <span class="ow">in</span> <span class="n">thresholds_by_agency</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+    <span class="n">subset</span> <span class="o">=</span> <span class="n">lagged</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"หน่วยงาน"</span><span class="p">)</span> <span class="o">==</span> <span class="n">agency</span><span class="p">)</span>
+    <span class="n">over_global</span> <span class="o">=</span> <span class="n">count_rows_over_lag_threshold</span><span class="p">(</span><span class="n">subset</span><span class="p">,</span> <span class="mi">398</span><span class="p">)</span>
+    <span class="n">over_own</span> <span class="o">=</span> <span class="n">count_rows_over_lag_threshold</span><span class="p">(</span><span class="n">subset</span><span class="p">,</span> <span class="n">own_threshold</span><span class="p">)</span>
+    <span class="n">rows</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+        <span class="p">{</span>
+            <span class="s2">"agency"</span><span class="p">:</span> <span class="n">agency</span><span class="p">,</span>
+            <span class="s2">"n"</span><span class="p">:</span> <span class="n">subset</span><span class="o">.</span><span class="n">height</span><span class="p">,</span>
+            <span class="s2">"own_p99_threshold"</span><span class="p">:</span> <span class="n">own_threshold</span><span class="p">,</span>
+            <span class="s2">"over_global_398"</span><span class="p">:</span> <span class="n">over_global</span><span class="p">,</span>
+            <span class="s2">"over_global_398_pct"</span><span class="p">:</span> <span class="nb">round</span><span class="p">(</span><span class="n">over_global</span> <span class="o">/</span> <span class="n">subset</span><span class="o">.</span><span class="n">height</span> <span class="o">*</span> <span class="mi">100</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span>
+            <span class="s2">"over_own_p99"</span><span class="p">:</span> <span class="n">over_own</span><span class="p">,</span>
+            <span class="s2">"over_own_p99_pct"</span><span class="p">:</span> <span class="nb">round</span><span class="p">(</span><span class="n">over_own</span> <span class="o">/</span> <span class="n">subset</span><span class="o">.</span><span class="n">height</span> <span class="o">*</span> <span class="mi">100</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span>
+        <span class="p">}</span>
+    <span class="p">)</span>
+<span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell-outputWrapper">
+<div class="jp-Collapser jp-OutputCollapser jp-Cell-outputCollapser">
+</div>
+<div class="jp-OutputArea jp-Cell-outputArea">
+<div class="jp-OutputArea-child jp-OutputArea-executeResult">
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[14]:</div>
+<div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
+<div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (3, 7)</small><table border="1" class="dataframe"><thead><tr><th>agency</th><th>n</th><th>own_p99_threshold</th><th>over_global_398</th><th>over_global_398_pct</th><th>over_own_p99</th><th>over_own_p99_pct</th></tr><tr><td>str</td><td>i64</td><td>i64</td><td>i64</td><td>f64</td><td>i64</td><td>f64</td></tr></thead><tbody><tr><td>"กรมทางหลวง"</td><td>149318</td><td>393</td><td>1269</td><td>0.85</td><td>1454</td><td>0.97</td></tr><tr><td>"กรมทางหลวงชนบท"</td><td>9302</td><td>235</td><td>9</td><td>0.1</td><td>90</td><td>0.97</td></tr><tr><td>"การทางพิเศษแห่งประเทศไทย"</td><td>2604</td><td>1219</td><td>283</td><td>10.87</td><td>24</td><td>0.92</td></tr></tbody></table></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=d483b534">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p><strong>นี่คือปัญหาความแม่นยำ (precision) แบบจับต้องได้:</strong> threshold 398 วันแบบ global <strong>ปล่อยผ่านมากเกินไป</strong>
+สำหรับกรมทางหลวงชนบท (flag แค่ 0.10% ทั้งที่การกระจายตัวของหน่วยงานนี้เองบอกว่าควรเป็น outlier ที่ ~1% —
+แถวที่ผิดปกติจริงของหน่วยงานนี้หลุดผ่านไปเป็น "valid") และ <strong>เข้มเกินไป</strong> สำหรับการทางพิเศษฯ (flag ถึง
+10.87% ทั้งที่ควรเป็นแค่ ~1% — แถวปกติของหน่วยงานนี้ถูกตัดสินผิดว่า invalid) threshold ต่อหน่วยงานทำให้ทุก
+หน่วยงานกลับมาอยู่ที่ ~1% เหมือนกันหมด (0.97% / 0.97% / 0.92%) ซึ่งคือพฤติกรรมที่ถูกต้องของ threshold แบบ
+percentile</p>
+<p><strong>ตัดสินใจ: safety net #2 ใช้ threshold ต่อหน่วยงาน (393 / 235 / 1,219 วัน) แทนตัวเลข global เดียว</strong></p>
 </div>
 </div>
 </div>
@@ -8633,36 +8825,48 @@ outlier แต่เป็นสัดส่วนขนาดใหญ่ ถ�
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [12]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In [15]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="cm-editor cm-s-jupyter">
-<div class="highlight hl-ipython3"><pre><span></span><span class="n">REPORT_LAG_THRESHOLD_DAYS</span> <span class="o">=</span> <span class="mi">398</span>  <span class="c1"># p99 of observed distribution, see above (not the invented 90)</span>
-
-<span class="n">transposed_keys</span> <span class="o">=</span> <span class="n">find_transposed_date_string_pairs</span><span class="p">(</span>
+<div class="highlight hl-ipython3"><pre><span></span><span class="n">transposed_keys</span> <span class="o">=</span> <span class="n">find_transposed_date_string_pairs</span><span class="p">(</span>
     <span class="n">accidents_raw</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ACC_CODE"</span><span class="p">)</span><span class="o">.</span><span class="n">is_not_null</span><span class="p">()),</span> <span class="s2">"ACC_CODE"</span><span class="p">,</span> <span class="s2">"วันที่เกิดเหตุ"</span>
 <span class="p">)</span>
 
-<span class="n">discrimination</span> <span class="o">=</span> <span class="n">discriminate_transposed_date_pairs</span><span class="p">(</span>
+<span class="n">discrimination_global</span> <span class="o">=</span> <span class="n">discriminate_transposed_date_pairs</span><span class="p">(</span>
     <span class="n">accidents_raw</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ACC_CODE"</span><span class="p">)</span><span class="o">.</span><span class="n">is_not_null</span><span class="p">()),</span>
     <span class="s2">"ACC_CODE"</span><span class="p">,</span>
     <span class="n">transposed_keys</span><span class="p">,</span>
     <span class="s2">"วันที่เกิดเหตุ"</span><span class="p">,</span>
     <span class="s2">"วันที่รายงาน"</span><span class="p">,</span>
     <span class="n">month_first</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-    <span class="n">max_report_lag_days</span><span class="o">=</span><span class="n">REPORT_LAG_THRESHOLD_DAYS</span><span class="p">,</span>
+    <span class="n">max_report_lag_days</span><span class="o">=</span><span class="mi">398</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">discrimination_per_agency</span> <span class="o">=</span> <span class="n">discriminate_transposed_date_pairs</span><span class="p">(</span>
+    <span class="n">accidents_raw</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ACC_CODE"</span><span class="p">)</span><span class="o">.</span><span class="n">is_not_null</span><span class="p">()),</span>
+    <span class="s2">"ACC_CODE"</span><span class="p">,</span>
+    <span class="n">transposed_keys</span><span class="p">,</span>
+    <span class="s2">"วันที่เกิดเหตุ"</span><span class="p">,</span>
+    <span class="s2">"วันที่รายงาน"</span><span class="p">,</span>
+    <span class="n">month_first</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">max_report_lag_days</span><span class="o">=</span><span class="n">thresholds_by_agency</span><span class="p">,</span>
+    <span class="n">threshold_group_column</span><span class="o">=</span><span class="s2">"หน่วยงาน"</span><span class="p">,</span>
 <span class="p">)</span>
 
 <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
     <span class="p">[</span>
         <span class="p">{</span>
-            <span class="s2">"transposed_pairs_found"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">transposed_keys</span><span class="p">),</span>
-            <span class="s2">"resolved_unique"</span><span class="p">:</span> <span class="n">discrimination</span><span class="o">.</span><span class="n">resolved_unique</span><span class="p">,</span>
-            <span class="s2">"both_valid (undecidable)"</span><span class="p">:</span> <span class="n">discrimination</span><span class="o">.</span><span class="n">both_valid</span><span class="p">,</span>
-            <span class="s2">"neither_valid (flag)"</span><span class="p">:</span> <span class="n">discrimination</span><span class="o">.</span><span class="n">neither_valid</span><span class="p">,</span>
-            <span class="s2">"sum"</span><span class="p">:</span> <span class="n">discrimination</span><span class="o">.</span><span class="n">resolved_unique</span>
-            <span class="o">+</span> <span class="n">discrimination</span><span class="o">.</span><span class="n">both_valid</span>
-            <span class="o">+</span> <span class="n">discrimination</span><span class="o">.</span><span class="n">neither_valid</span><span class="p">,</span>
-        <span class="p">}</span>
+            <span class="s2">"threshold"</span><span class="p">:</span> <span class="s2">"global 398"</span><span class="p">,</span>
+            <span class="s2">"resolved_unique"</span><span class="p">:</span> <span class="n">discrimination_global</span><span class="o">.</span><span class="n">resolved_unique</span><span class="p">,</span>
+            <span class="s2">"both_valid"</span><span class="p">:</span> <span class="n">discrimination_global</span><span class="o">.</span><span class="n">both_valid</span><span class="p">,</span>
+            <span class="s2">"neither_valid"</span><span class="p">:</span> <span class="n">discrimination_global</span><span class="o">.</span><span class="n">neither_valid</span><span class="p">,</span>
+        <span class="p">},</span>
+        <span class="p">{</span>
+            <span class="s2">"threshold"</span><span class="p">:</span> <span class="s2">"per-agency p99"</span><span class="p">,</span>
+            <span class="s2">"resolved_unique"</span><span class="p">:</span> <span class="n">discrimination_per_agency</span><span class="o">.</span><span class="n">resolved_unique</span><span class="p">,</span>
+            <span class="s2">"both_valid"</span><span class="p">:</span> <span class="n">discrimination_per_agency</span><span class="o">.</span><span class="n">both_valid</span><span class="p">,</span>
+            <span class="s2">"neither_valid"</span><span class="p">:</span> <span class="n">discrimination_per_agency</span><span class="o">.</span><span class="n">neither_valid</span><span class="p">,</span>
+        <span class="p">},</span>
     <span class="p">]</span>
 <span class="p">)</span>
 </pre></div>
@@ -8675,7 +8879,7 @@ outlier แต่เป็นสัดส่วนขนาดใหญ่ ถ�
 </div>
 <div class="jp-OutputArea jp-Cell-outputArea">
 <div class="jp-OutputArea-child jp-OutputArea-executeResult">
-<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[12]:</div>
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[15]:</div>
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
 <div><style>
 .dataframe > thead > tr,
@@ -8684,59 +8888,62 @@ outlier แต่เป็นสัดส่วนขนาดใหญ่ ถ�
   white-space: pre-wrap;
 }
 </style>
-<small>shape: (1, 5)</small><table border="1" class="dataframe"><thead><tr><th>transposed_pairs_found</th><th>resolved_unique</th><th>both_valid (undecidable)</th><th>neither_valid (flag)</th><th>sum</th></tr><tr><td>i64</td><td>i64</td><td>i64</td><td>i64</td><td>i64</td></tr></thead><tbody><tr><td>448</td><td>138</td><td>310</td><td>0</td><td>448</td></tr></tbody></table></div>
+<small>shape: (2, 4)</small><table border="1" class="dataframe"><thead><tr><th>threshold</th><th>resolved_unique</th><th>both_valid</th><th>neither_valid</th></tr><tr><td>str</td><td>i64</td><td>i64</td><td>i64</td></tr></thead><tbody><tr><td>"global 398"</td><td>138</td><td>310</td><td>0</td></tr><tr><td>"per-agency p99"</td><td>156</td><td>292</td><td>0</td></tr></tbody></table></div>
 </div>
 </div>
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=cc850bb0">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=b1add035">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<p><strong>ผล (หลังใช้ threshold ที่ตรวจสอบแล้ว 398 วัน)</strong>: 448 คู่ตรงกับที่พบใน P5 เป๊ะ (425 กลุ่ม 2 แถว +
-23 กลุ่ม 3 แถว) — ตัวเลขเปลี่ยนจากรอบแรกตามที่คาด เพราะ threshold กว้างขึ้นมาก:</p>
+<p><strong>ผล</strong>: 448 คู่ตรงกับที่พบใน P5 เป๊ะทั้งสองรอบ threshold ต่อหน่วยงานดึงอำนาจแยกแยะกลับมาได้บางส่วน
+โดยไม่ทำให้ "neither valid" กลับมาเป็นบวก:</p>
 <table>
 <thead>
 <tr>
-<th>ผลลัพธ์</th>
+<th>Outcome</th>
 <th>@90 วัน (เดาไว้)</th>
-<th>@398 วัน (p99, จากข้อมูลจริง)</th>
-<th>ความหมาย</th>
+<th>@398 global (p99)</th>
+<th>@per-agency p99</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>Resolved uniquely</td>
 <td>222</td>
-<td><strong>138</strong></td>
-<td>มีตัวเลือกเดียวผ่านเงื่อนไข → นั่นคือวันที่จริง</td>
+<td>138</td>
+<td><strong>156</strong></td>
 </tr>
 <tr>
 <td>Both valid</td>
 <td>196</td>
-<td><strong>310</strong></td>
-<td>ตัดสินไม่ได้จากหลักฐานนี้ — ต้อง flag ไม่เดา</td>
+<td>310</td>
+<td><strong>292</strong></td>
 </tr>
 <tr>
 <td>Neither valid</td>
 <td>30</td>
+<td>0</td>
 <td><strong>0</strong></td>
-<td>—</td>
 </tr>
 </tbody>
 </table>
-<p><strong>ทั้ง 30 กรณี "neither valid" ที่ threshold เดิม กลายเป็น valid ทั้งหมดที่ threshold ที่ตรวจสอบแล้ว</strong> —
-ยืนยันสมมติฐานที่ยกขึ้นมา: กรณีเหล่านั้นเป็นแค่ lag การรายงานที่ยาวถูกต้องตามจริง ไม่ใช่ข้อมูลเสีย
-ต้นทุนของ threshold ที่กว้างขึ้นแต่ถูกต้องคือ<strong>อำนาจแยกแยะลดลง</strong> (resolved unique เหลือ 138 จาก 222
-เพราะหน้าต่าง 398 วันทำให้ทั้งสองตัวเลือกดูสมเหตุสมผลได้บ่อยขึ้น) — ไม่ใช่บั๊ก threshold ที่กว้างและถูกต้อง
-ย่อมแยกแยะได้น้อยกว่า threshold ที่แคบแต่ผิด</p>
-<h3 id="%E0%B8%82%E0%B9%89%E0%B8%AD%E0%B9%80%E0%B8%AA%E0%B8%99%E0%B8%AD%E0%B8%AA%E0%B8%B3%E0%B8%AB%E0%B8%A3%E0%B8%B1%E0%B8%9A-Phase-2-(%E0%B8%A2%E0%B8%B1%E0%B8%87%E0%B9%84%E0%B8%A1%E0%B9%88-implement-%E2%80%94-%E0%B9%80%E0%B8%9B%E0%B9%87%E0%B8%99%E0%B9%81%E0%B8%84%E0%B9%88-design-note)">ข้อเสนอสำหรับ Phase 2 (ยังไม่ implement — เป็นแค่ design note)<a class="anchor-link" href="#%E0%B8%82%E0%B9%89%E0%B8%AD%E0%B9%80%E0%B8%AA%E0%B8%99%E0%B8%AD%E0%B8%AA%E0%B8%B3%E0%B8%AB%E0%B8%A3%E0%B8%B1%E0%B8%9A-Phase-2-(%E0%B8%A2%E0%B8%B1%E0%B8%87%E0%B9%84%E0%B8%A1%E0%B9%88-implement-%E2%80%94-%E0%B9%80%E0%B8%9B%E0%B9%87%E0%B8%99%E0%B9%81%E0%B8%84%E0%B9%88-design-note)">¶</a></h3><p>สำหรับ 310 กลุ่ม (620 แถว) ที่ safety net #2 ตัดสินไม่ได้ ให้เพิ่มคอลัมน์ <code>date_certainty</code>
-(<code>certain</code> / <code>ambiguous</code>) ใน <code>fact_accident</code> แทนการเลือกวันที่แบบเดาสุ่ม — 448 จาก 23,841 แถวใน
-<code>accident2023.csv</code> คิดเป็น ~1.9% ถือว่าน้อย แต่วันที่ที่ผิดไปเป็นเดือนคือความเสียหายที่กระทบ BQ3
-(ความเสี่ยงช่วงวันหยุด) โดยตรง จึงต้อง flag ไว้ ไม่ใช่เดาแล้วปล่อยผ่าน</p>
+<p>138 → 156 ยืนยันว่า threshold ต่อหน่วยงานช่วยทั้ง Gate A (ความแม่นยำ) และการแยกแยะพร้อมกัน ไม่ใช่การแลก
+อย่างหนึ่งเพื่ออีกอย่างหนึ่งเหมือนตอนใช้ global 398</p>
+<h3 id="%E0%B8%A2%E0%B8%B1%E0%B8%87%E0%B9%80%E0%B8%AB%E0%B8%A5%E0%B8%B7%E0%B8%AD-292-%E0%B8%84%E0%B8%B9%E0%B9%88%E0%B8%95%E0%B8%B1%E0%B8%94%E0%B8%AA%E0%B8%B4%E0%B8%99%E0%B9%84%E0%B8%A1%E0%B9%88%E0%B9%84%E0%B8%94%E0%B9%89-%E2%80%94-%E0%B8%AD%E0%B8%AD%E0%B8%81%E0%B9%81%E0%B8%9A%E0%B8%9A-likelihood-comparison-%E0%B9%84%E0%B8%A7%E0%B9%89%E0%B8%AA%E0%B8%B3%E0%B8%AB%E0%B8%A3%E0%B8%B1%E0%B8%9A-Phase-2-(%E0%B8%A2%E0%B8%B1%E0%B8%87%E0%B9%84%E0%B8%A1%E0%B9%88-implement)">ยังเหลือ 292 คู่ตัดสินไม่ได้ — ออกแบบ likelihood comparison ไว้สำหรับ Phase 2 (ยังไม่ implement)<a class="anchor-link" href="#%E0%B8%A2%E0%B8%B1%E0%B8%87%E0%B9%80%E0%B8%AB%E0%B8%A5%E0%B8%B7%E0%B8%AD-292-%E0%B8%84%E0%B8%B9%E0%B9%88%E0%B8%95%E0%B8%B1%E0%B8%94%E0%B8%AA%E0%B8%B4%E0%B8%99%E0%B9%84%E0%B8%A1%E0%B9%88%E0%B9%84%E0%B8%94%E0%B9%89-%E2%80%94-%E0%B8%AD%E0%B8%AD%E0%B8%81%E0%B9%81%E0%B8%9A%E0%B8%9A-likelihood-comparison-%E0%B9%84%E0%B8%A7%E0%B9%89%E0%B8%AA%E0%B8%B3%E0%B8%AB%E0%B8%A3%E0%B8%B1%E0%B8%9A-Phase-2-(%E0%B8%A2%E0%B8%B1%E0%B8%87%E0%B9%84%E0%B8%A1%E0%B9%88-implement)">¶</a></h3><p>การทดสอบแบบ binary (ผ่าน/ไม่ผ่าน) ทิ้งข้อมูลที่มีประโยชน์ไป แนวคิดที่ออกแบบไว้ (รายละเอียดเต็มใน CLAUDE.md
+P1): แทนที่จะถามแค่ "ผ่าน threshold ไหม" ให้เทียบว่า lag ของแต่ละตัวเลือกใกล้เคียงกับค่ามัธยฐาน (median)
+ของหน่วยงานนั้นแค่ไหน เลือกตัวที่ใกล้กว่า แล้วบันทึก margin (ผลต่างของระยะห่าง) ไว้เป็นตัวชี้วัดความมั่นใจ
+— จะเปลี่ยนคู่ที่ "ตัดสินไม่ได้" ส่วนใหญ่ให้กลายเป็นการตัดสินใจที่มีระดับความมั่นใจกำกับ แทนที่จะปล่อยเป็น
+undecided ทั้งหมด (<code>certain</code> / <code>low_confidence</code> / <code>flagged</code>) — ออกแบบไว้ในรอบนี้ ยัง<strong>ไม่ implement</strong>
+รอ Phase 2 ตามที่สั่ง</p>
+<h3 id="%E0%B8%82%E0%B9%89%E0%B8%AD%E0%B9%80%E0%B8%AA%E0%B8%99%E0%B8%AD%E0%B8%AA%E0%B8%B3%E0%B8%AB%E0%B8%A3%E0%B8%B1%E0%B8%9A-Phase-2-(%E0%B8%A2%E0%B8%B1%E0%B8%87%E0%B9%84%E0%B8%A1%E0%B9%88-implement-%E2%80%94-%E0%B9%80%E0%B8%9B%E0%B9%87%E0%B8%99%E0%B9%81%E0%B8%84%E0%B9%88-design-note)">ข้อเสนอสำหรับ Phase 2 (ยังไม่ implement — เป็นแค่ design note)<a class="anchor-link" href="#%E0%B8%82%E0%B9%89%E0%B8%AD%E0%B9%80%E0%B8%AA%E0%B8%99%E0%B8%AD%E0%B8%AA%E0%B8%B3%E0%B8%AB%E0%B8%A3%E0%B8%B1%E0%B8%9A-Phase-2-(%E0%B8%A2%E0%B8%B1%E0%B8%87%E0%B9%84%E0%B8%A1%E0%B9%88-implement-%E2%80%94-%E0%B9%80%E0%B8%9B%E0%B9%87%E0%B8%99%E0%B9%81%E0%B8%84%E0%B9%88-design-note)">¶</a></h3><p>สำหรับ 292 กลุ่ม (584 แถว) ที่ safety net #2 ตัดสินไม่ได้แม้ใช้ threshold ต่อหน่วยงานแล้ว ให้เพิ่มคอลัมน์
+<code>date_certainty</code> (<code>certain</code> / <code>low_confidence</code> / <code>ambiguous</code>) ใน <code>fact_accident</code> แทนการเลือกวันที่แบบเดา
+สุ่ม — 448 จาก 23,841 แถวใน <code>accident2023.csv</code> คิดเป็น ~1.9% ถือว่าน้อย แต่วันที่ที่ผิดไปเป็นเดือนคือความ
+เสียหายที่กระทบ BQ3 (ความเสี่ยงช่วงวันหยุด) โดยตรง จึงต้อง flag ไว้ ไม่ใช่เดาแล้วปล่อยผ่าน</p>
 </div>
 </div>
 </div>
@@ -8759,7 +8966,7 @@ outlier แต่เป็นสัดส่วนขนาดใหญ่ ถ�
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [13]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In [16]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="cm-editor cm-s-jupyter">
 <div class="highlight hl-ipython3"><pre><span></span><span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">([{</span><span class="s2">"column_a"</span><span class="p">:</span> <span class="n">a</span><span class="p">,</span> <span class="s2">"column_b"</span><span class="p">:</span> <span class="n">b</span><span class="p">}</span> <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">accidents_profile</span><span class="o">.</span><span class="n">null_correlated_pairs</span><span class="p">])</span>
@@ -8773,7 +8980,7 @@ outlier แต่เป็นสัดส่วนขนาดใหญ่ ถ�
 </div>
 <div class="jp-OutputArea jp-Cell-outputArea">
 <div class="jp-OutputArea-child jp-OutputArea-executeResult">
-<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[13]:</div>
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[16]:</div>
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
 <div><style>
 .dataframe > thead > tr,
@@ -8821,7 +9028,7 @@ outlier แต่เป็นสัดส่วนขนาดใหญ่ ถ�
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [14]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In [17]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="cm-editor cm-s-jupyter">
 <div class="highlight hl-ipython3"><pre><span></span><span class="n">primary_col</span> <span class="o">=</span> <span class="s2">"บริเวณที่เกิดเหตุ"</span>
@@ -8846,7 +9053,7 @@ outlier แต่เป็นสัดส่วนขนาดใหญ่ ถ�
 </div>
 <div class="jp-OutputArea jp-Cell-outputArea">
 <div class="jp-OutputArea-child jp-OutputArea-executeResult">
-<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[14]:</div>
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[17]:</div>
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
 <div><style>
 .dataframe > thead > tr,
@@ -8877,7 +9084,7 @@ outlier แต่เป็นสัดส่วนขนาดใหญ่ ถ�
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [15]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In [18]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="cm-editor cm-s-jupyter">
 <div class="highlight hl-ipython3"><pre><span></span><span class="n">hypothesis_check</span> <span class="o">=</span> <span class="n">check_value_when_both_populated</span><span class="p">(</span><span class="n">accidents_raw</span><span class="p">,</span> <span class="n">primary_col</span><span class="p">,</span> <span class="n">secondary_col</span><span class="p">,</span> <span class="s2">"อื่นๆ"</span><span class="p">)</span>
@@ -8901,7 +9108,7 @@ outlier แต่เป็นสัดส่วนขนาดใหญ่ ถ�
 </div>
 <div class="jp-OutputArea jp-Cell-outputArea">
 <div class="jp-OutputArea-child jp-OutputArea-executeResult">
-<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[15]:</div>
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[18]:</div>
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
 <div><style>
 .dataframe > thead > tr,
@@ -8956,7 +9163,7 @@ outlier แต่เป็นสัดส่วนขนาดใหญ่ ถ�
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [16]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In [19]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="cm-editor cm-s-jupyter">
 <div class="highlight hl-ipython3"><pre><span></span><span class="n">location_conflicts</span> <span class="o">=</span> <span class="n">find_conflicting_groups</span><span class="p">(</span><span class="n">accidents_raw</span><span class="p">,</span> <span class="p">[</span><span class="s2">"ACC_CODE"</span><span class="p">],</span> <span class="s2">"บริเวณที่เกิดเหตุ"</span><span class="p">)</span>
@@ -8975,7 +9182,7 @@ outlier แต่เป็นสัดส่วนขนาดใหญ่ ถ�
 </div>
 <div class="jp-OutputArea jp-Cell-outputArea">
 <div class="jp-OutputArea-child jp-OutputArea-executeResult">
-<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[16]:</div>
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[19]:</div>
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
 <div><style>
 .dataframe > thead > tr,
@@ -9008,7 +9215,7 @@ outlier แต่เป็นสัดส่วนขนาดใหญ่ ถ�
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [17]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In [20]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="cm-editor cm-s-jupyter">
 <div class="highlight hl-ipython3"><pre><span></span><span class="n">resolved</span><span class="p">,</span> <span class="n">still_conflicting</span> <span class="o">=</span> <span class="n">count_resolved_by_normalization</span><span class="p">(</span><span class="n">location_conflicts</span><span class="p">)</span>
@@ -9034,7 +9241,7 @@ outlier แต่เป็นสัดส่วนขนาดใหญ่ ถ�
 </div>
 <div class="jp-OutputArea jp-Cell-outputArea">
 <div class="jp-OutputArea-child jp-OutputArea-executeResult">
-<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[17]:</div>
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[20]:</div>
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
 <div><style>
 .dataframe > thead > tr,
@@ -9086,7 +9293,7 @@ outlier แต่เป็นสัดส่วนขนาดใหญ่ ถ�
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [18]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In [21]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="cm-editor cm-s-jupyter">
 <div class="highlight hl-ipython3"><pre><span></span><span class="n">DATE_CATEGORIES</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"slash_unambiguous"</span><span class="p">,</span> <span class="s2">"slash_ambiguous"</span><span class="p">,</span> <span class="s2">"excel_serial"</span><span class="p">,</span> <span class="s2">"empty"</span><span class="p">,</span> <span class="s2">"other"</span><span class="p">]</span>
@@ -9110,7 +9317,7 @@ outlier แต่เป็นสัดส่วนขนาดใหญ่ ถ�
 </div>
 <div class="jp-OutputArea jp-Cell-outputArea">
 <div class="jp-OutputArea-child jp-OutputArea-executeResult">
-<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[18]:</div>
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[21]:</div>
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
 <div><style>
 .dataframe > thead > tr,
@@ -9147,7 +9354,7 @@ outlier แต่เป็นสัดส่วนขนาดใหญ่ ถ�
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [19]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In [22]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="cm-editor cm-s-jupyter">
 <div class="highlight hl-ipython3"><pre><span></span><span class="n">TIME_CATEGORIES</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"clock_string"</span><span class="p">,</span> <span class="s2">"excel_fraction"</span><span class="p">,</span> <span class="s2">"empty"</span><span class="p">,</span> <span class="s2">"other"</span><span class="p">]</span>
@@ -9171,7 +9378,7 @@ outlier แต่เป็นสัดส่วนขนาดใหญ่ ถ�
 </div>
 <div class="jp-OutputArea jp-Cell-outputArea">
 <div class="jp-OutputArea-child jp-OutputArea-executeResult">
-<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[19]:</div>
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[22]:</div>
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
 <div><style>
 .dataframe > thead > tr,
@@ -9231,7 +9438,7 @@ outlier แต่เป็นสัดส่วนขนาดใหญ่ ถ�
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [20]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In [23]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="cm-editor cm-s-jupyter">
 <div class="highlight hl-ipython3"><pre><span></span><span class="n">OTHER_CSV_SOURCES</span> <span class="o">=</span> <span class="p">[</span>
@@ -9269,7 +9476,7 @@ outlier แต่เป็นสัดส่วนขนาดใหญ่ ถ�
 </div>
 <div class="jp-OutputArea jp-Cell-outputArea">
 <div class="jp-OutputArea-child jp-OutputArea-executeResult">
-<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[20]:</div>
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[23]:</div>
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
 <div><style>
 .dataframe > thead > tr,
@@ -9302,7 +9509,7 @@ key ไหนเป็น object ซ้อน (nested), และความล
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [21]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In [24]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="cm-editor cm-s-jupyter">
 <div class="highlight hl-ipython3"><pre><span></span><span class="n">JSON_FILENAMES</span> <span class="o">=</span> <span class="p">[</span>
@@ -9337,7 +9544,7 @@ key ไหนเป็น object ซ้อน (nested), และความล
 </div>
 <div class="jp-OutputArea jp-Cell-outputArea">
 <div class="jp-OutputArea-child jp-OutputArea-executeResult">
-<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[21]:</div>
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[24]:</div>
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
 <div><style>
 .dataframe > thead > tr,
@@ -9375,7 +9582,7 @@ fail และรายงานออกมา — <strong>ไม่ลด requ
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [22]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In [25]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="cm-editor cm-s-jupyter">
 <div class="highlight hl-ipython3"><pre><span></span><span class="n">report</span> <span class="o">=</span> <span class="n">run_accidents_raw_contract</span><span class="p">(</span><span class="n">accidents_raw</span><span class="p">)</span>
@@ -9391,7 +9598,7 @@ fail และรายงานออกมา — <strong>ไม่ลด requ
 </div>
 <div class="jp-OutputArea jp-Cell-outputArea">
 <div class="jp-OutputArea-child jp-OutputArea-executeResult">
-<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[22]:</div>
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[25]:</div>
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
 <div><style>
 .dataframe > thead > tr,
@@ -9423,7 +9630,7 @@ fail และรายงานออกมา — <strong>ไม่ลด requ
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [23]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In [26]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="cm-editor cm-s-jupyter">
 <div class="highlight hl-ipython3"><pre><span></span><span class="n">accidents_raw</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"วันที่รายงาน"</span><span class="p">)</span><span class="o">.</span><span class="n">is_null</span><span class="p">())</span><span class="o">.</span><span class="n">group_by</span><span class="p">(</span><span class="s2">"source_file"</span><span class="p">)</span><span class="o">.</span><span class="n">len</span><span class="p">()</span>
@@ -9437,7 +9644,7 @@ fail และรายงานออกมา — <strong>ไม่ลด requ
 </div>
 <div class="jp-OutputArea jp-Cell-outputArea">
 <div class="jp-OutputArea-child jp-OutputArea-executeResult">
-<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[23]:</div>
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[26]:</div>
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
 <div><style>
 .dataframe > thead > tr,
@@ -9446,7 +9653,7 @@ fail และรายงานออกมา — <strong>ไม่ลด requ
   white-space: pre-wrap;
 }
 </style>
-<small>shape: (2, 2)</small><table border="1" class="dataframe"><thead><tr><th>source_file</th><th>len</th></tr><tr><td>str</td><td>u32</td></tr></thead><tbody><tr><td>"accident2026.csv"</td><td>74</td></tr><tr><td>"accident2023.csv"</td><td>4</td></tr></tbody></table></div>
+<small>shape: (2, 2)</small><table border="1" class="dataframe"><thead><tr><th>source_file</th><th>len</th></tr><tr><td>str</td><td>u32</td></tr></thead><tbody><tr><td>"accident2023.csv"</td><td>4</td></tr><tr><td>"accident2026.csv"</td><td>74</td></tr></tbody></table></div>
 </div>
 </div>
 </div>
@@ -9470,7 +9677,7 @@ fail และรายงานออกมา — <strong>ไม่ลด requ
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [24]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In [27]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="cm-editor cm-s-jupyter">
 <div class="highlight hl-ipython3"><pre><span></span><span class="n">gate1_df</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
@@ -9599,6 +9806,225 @@ column จริง)</li>
 </div>
 </div>
 </div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=1e996f72">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<h3 id="9.1-%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%AA%E0%B8%B7%E0%B8%9A%E0%B8%AA%E0%B8%A7%E0%B8%99%E0%B9%80%E0%B8%9E%E0%B8%B4%E0%B9%88%E0%B8%A1%E0%B9%80%E0%B8%95%E0%B8%B4%E0%B8%A1-%E2%80%94-%E0%B8%97%E0%B8%B3%E0%B9%84%E0%B8%A1%E0%B8%A2%E0%B8%AD%E0%B8%94%E0%B8%9C%E0%B8%B9%E0%B9%89%E0%B8%9A%E0%B8%B2%E0%B8%94%E0%B9%80%E0%B8%88%E0%B9%87%E0%B8%9A%E0%B9%84%E0%B8%A1%E0%B9%88%E0%B8%95%E0%B8%A3%E0%B8%87-9,872-%E0%B9%81%E0%B8%96%E0%B8%A7-(owner-requested-follow-up)">9.1 การสืบสวนเพิ่มเติม — ทำไมยอดผู้บาดเจ็บไม่ตรง 9,872 แถว (owner-requested follow-up)<a class="anchor-link" href="#9.1-%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%AA%E0%B8%B7%E0%B8%9A%E0%B8%AA%E0%B8%A7%E0%B8%99%E0%B9%80%E0%B8%9E%E0%B8%B4%E0%B9%88%E0%B8%A1%E0%B9%80%E0%B8%95%E0%B8%B4%E0%B8%A1-%E2%80%94-%E0%B8%97%E0%B8%B3%E0%B9%84%E0%B8%A1%E0%B8%A2%E0%B8%AD%E0%B8%94%E0%B8%9C%E0%B8%B9%E0%B9%89%E0%B8%9A%E0%B8%B2%E0%B8%94%E0%B9%80%E0%B8%88%E0%B9%87%E0%B8%9A%E0%B9%84%E0%B8%A1%E0%B9%88%E0%B8%95%E0%B8%A3%E0%B8%87-9,872-%E0%B9%81%E0%B8%96%E0%B8%A7-(owner-requested-follow-up)">¶</a></h3><p><code>Severity Index</code> เป็นหนึ่งใน core measure ที่ใช้ยอดผู้บาดเจ็บโดยตรง ก่อนส่งต่อ Phase 2 ต้องรู้ 3 อย่าง:
+ทิศทางของความไม่ตรง (total มากกว่าหรือน้อยกว่าผลรวม), กระจุกอยู่ที่ไฟล์/ปี/หน่วยงานไหน, และมีกี่แถวที่
+column ใด column หนึ่งเป็น null (ปัญหาคนละแบบกับแถวที่ทั้งสามคอลัมน์มีค่าแต่ขัดแย้งกัน)</p>
+</div>
+</div>
+</div>
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=f23004e5">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [28]:</div>
+<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="cm-editor cm-s-jupyter">
+<div class="highlight hl-ipython3"><pre><span></span><span class="n">serious</span> <span class="o">=</span> <span class="n">accidents_raw</span><span class="p">[</span><span class="s2">"ผู้บาดเจ็บสาหัส"</span><span class="p">]</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">Float64</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">minor</span> <span class="o">=</span> <span class="n">accidents_raw</span><span class="p">[</span><span class="s2">"ผู้บาดเจ็บเล็กน้อย"</span><span class="p">]</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">Float64</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">total</span> <span class="o">=</span> <span class="n">accidents_raw</span><span class="p">[</span><span class="s2">"รวมจำนวนผู้บาดเจ็บ"</span><span class="p">]</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">Float64</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">mismatch_mask</span> <span class="o">=</span> <span class="p">(</span><span class="n">serious</span> <span class="o">+</span> <span class="n">minor</span><span class="p">)</span> <span class="o">!=</span> <span class="n">total</span>
+<span class="n">mismatched</span> <span class="o">=</span> <span class="n">accidents_raw</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">mismatch_mask</span><span class="p">)</span>
+<span class="n">diff</span> <span class="o">=</span> <span class="p">(</span><span class="n">total</span> <span class="o">-</span> <span class="p">(</span><span class="n">serious</span> <span class="o">+</span> <span class="n">minor</span><span class="p">))</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">mismatch_mask</span><span class="p">)</span>
+
+<span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+    <span class="p">[</span>
+        <span class="p">{</span>
+            <span class="s2">"mismatched_rows"</span><span class="p">:</span> <span class="n">mismatched</span><span class="o">.</span><span class="n">height</span><span class="p">,</span>
+            <span class="s2">"total_greater_than_sum"</span><span class="p">:</span> <span class="nb">int</span><span class="p">((</span><span class="n">diff</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()),</span>
+            <span class="s2">"total_less_than_sum"</span><span class="p">:</span> <span class="nb">int</span><span class="p">((</span><span class="n">diff</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()),</span>
+            <span class="s2">"diff_min"</span><span class="p">:</span> <span class="n">diff</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span>
+            <span class="s2">"diff_max"</span><span class="p">:</span> <span class="n">diff</span><span class="o">.</span><span class="n">max</span><span class="p">(),</span>
+            <span class="s2">"diff_median"</span><span class="p">:</span> <span class="n">diff</span><span class="o">.</span><span class="n">median</span><span class="p">(),</span>
+        <span class="p">}</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell-outputWrapper">
+<div class="jp-Collapser jp-OutputCollapser jp-Cell-outputCollapser">
+</div>
+<div class="jp-OutputArea jp-Cell-outputArea">
+<div class="jp-OutputArea-child jp-OutputArea-executeResult">
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[28]:</div>
+<div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
+<div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (1, 6)</small><table border="1" class="dataframe"><thead><tr><th>mismatched_rows</th><th>total_greater_than_sum</th><th>total_less_than_sum</th><th>diff_min</th><th>diff_max</th><th>diff_median</th></tr><tr><td>i64</td><td>i64</td><td>i64</td><td>f64</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>9872</td><td>9872</td><td>0</td><td>1.0</td><td>51.0</td><td>1.0</td></tr></tbody></table></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=2d4fc233">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p><strong>ทิศทางเดียวล้วน ๆ</strong>: ทั้ง 9,872 แถวเป็น <code>total &gt; serious + minor</code> เสมอ — <strong>ไม่มีแถวไหนเลยที่กลับด้าน</strong>
+สัญญาณของสาเหตุที่เป็นระบบ (systematic) ไม่ใช่ความผิดพลาดสุ่ม ตรวจต่อว่ากระจุกอยู่ที่ไหน:</p>
+</div>
+</div>
+</div>
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=dcf7b95e">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [29]:</div>
+<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="cm-editor cm-s-jupyter">
+<div class="highlight hl-ipython3"><pre><span></span><span class="n">by_file</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">mismatched</span><span class="o">.</span><span class="n">group_by</span><span class="p">(</span><span class="s2">"source_file"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">len</span><span class="p">()</span>
+    <span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"source_file"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">rename</span><span class="p">({</span><span class="s2">"source_file"</span><span class="p">:</span> <span class="s2">"group"</span><span class="p">})</span>
+    <span class="o">.</span><span class="n">with_columns</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="s2">"by source_file"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"breakdown"</span><span class="p">))</span>
+<span class="p">)</span>
+<span class="n">by_agency_mismatch</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">mismatched</span><span class="o">.</span><span class="n">group_by</span><span class="p">(</span><span class="s2">"หน่วยงาน"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">len</span><span class="p">()</span>
+    <span class="o">.</span><span class="n">rename</span><span class="p">({</span><span class="s2">"หน่วยงาน"</span><span class="p">:</span> <span class="s2">"group"</span><span class="p">})</span>
+    <span class="o">.</span><span class="n">with_columns</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="s2">"by agency"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"breakdown"</span><span class="p">))</span>
+<span class="p">)</span>
+<span class="n">pl</span><span class="o">.</span><span class="n">concat</span><span class="p">([</span><span class="n">by_file</span><span class="p">,</span> <span class="n">by_agency_mismatch</span><span class="p">])</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell-outputWrapper">
+<div class="jp-Collapser jp-OutputCollapser jp-Cell-outputCollapser">
+</div>
+<div class="jp-OutputArea jp-Cell-outputArea">
+<div class="jp-OutputArea-child jp-OutputArea-executeResult">
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[29]:</div>
+<div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
+<div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (4, 3)</small><table border="1" class="dataframe"><thead><tr><th>group</th><th>len</th><th>breakdown</th></tr><tr><td>str</td><td>u32</td><td>str</td></tr></thead><tbody><tr><td>"accident2019.csv"</td><td>9872</td><td>"by source_file"</td></tr><tr><td>"กรมทางหลวงชนบท"</td><td>1113</td><td>"by agency"</td></tr><tr><td>"การทางพิเศษแห่งประเทศไทย"</td><td>16</td><td>"by agency"</td></tr><tr><td>"กรมทางหลวง"</td><td>8743</td><td>"by agency"</td></tr></tbody></table></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=7bbbad68">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p><strong>กระจุกอยู่ที่ <code>accident2019.csv</code> 100% — ไม่มีแม้แต่แถวเดียวในไฟล์ปีอื่น</strong> (ยอดตามหน่วยงานที่เห็นเป็นแค่
+สัดส่วนของหน่วยงานภายในไฟล์ 2019 เท่านั้น ไม่ใช่หลักฐานว่าเรื่องนี้เกี่ยวกับหน่วยงาน) ตรวจต่อว่ากี่แถวที่
+column ใด column หนึ่ง null:</p>
+</div>
+</div>
+</div>
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=40408ec3">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [30]:</div>
+<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="cm-editor cm-s-jupyter">
+<div class="highlight hl-ipython3"><pre><span></span><span class="n">null_serious</span> <span class="o">=</span> <span class="n">mismatched</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ผู้บาดเจ็บสาหัส"</span><span class="p">)</span><span class="o">.</span><span class="n">is_null</span><span class="p">())</span><span class="o">.</span><span class="n">height</span>
+<span class="n">null_minor</span> <span class="o">=</span> <span class="n">mismatched</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ผู้บาดเจ็บเล็กน้อย"</span><span class="p">)</span><span class="o">.</span><span class="n">is_null</span><span class="p">())</span><span class="o">.</span><span class="n">height</span>
+<span class="n">null_either</span> <span class="o">=</span> <span class="n">mismatched</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span>
+    <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ผู้บาดเจ็บสาหัส"</span><span class="p">)</span><span class="o">.</span><span class="n">is_null</span><span class="p">()</span> <span class="o">|</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ผู้บาดเจ็บเล็กน้อย"</span><span class="p">)</span><span class="o">.</span><span class="n">is_null</span><span class="p">()</span>
+<span class="p">)</span><span class="o">.</span><span class="n">height</span>
+<span class="n">all_three_populated</span> <span class="o">=</span> <span class="n">mismatched</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span>
+    <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ผู้บาดเจ็บสาหัส"</span><span class="p">)</span><span class="o">.</span><span class="n">is_not_null</span><span class="p">()</span>
+    <span class="o">&amp;</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ผู้บาดเจ็บเล็กน้อย"</span><span class="p">)</span><span class="o">.</span><span class="n">is_not_null</span><span class="p">()</span>
+    <span class="o">&amp;</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"รวมจำนวนผู้บาดเจ็บ"</span><span class="p">)</span><span class="o">.</span><span class="n">is_not_null</span><span class="p">()</span>
+<span class="p">)</span><span class="o">.</span><span class="n">height</span>
+
+<span class="n">d2019</span> <span class="o">=</span> <span class="n">accidents_raw</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"source_file"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"accident2019.csv"</span><span class="p">)</span>
+
+<span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+    <span class="p">[</span>
+        <span class="p">{</span>
+            <span class="s2">"mismatched_null_in_serious"</span><span class="p">:</span> <span class="n">null_serious</span><span class="p">,</span>
+            <span class="s2">"mismatched_null_in_minor"</span><span class="p">:</span> <span class="n">null_minor</span><span class="p">,</span>
+            <span class="s2">"mismatched_null_in_either"</span><span class="p">:</span> <span class="n">null_either</span><span class="p">,</span>
+            <span class="s2">"mismatched_all_three_populated_but_inconsistent"</span><span class="p">:</span> <span class="n">all_three_populated</span><span class="p">,</span>
+            <span class="s2">"accident2019_total_rows"</span><span class="p">:</span> <span class="n">d2019</span><span class="o">.</span><span class="n">height</span><span class="p">,</span>
+            <span class="s2">"accident2019_serious_null_pct"</span><span class="p">:</span> <span class="nb">round</span><span class="p">(</span>
+                <span class="n">d2019</span><span class="p">[</span><span class="s2">"ผู้บาดเจ็บสาหัส"</span><span class="p">]</span><span class="o">.</span><span class="n">null_count</span><span class="p">()</span> <span class="o">/</span> <span class="n">d2019</span><span class="o">.</span><span class="n">height</span> <span class="o">*</span> <span class="mi">100</span><span class="p">,</span> <span class="mi">1</span>
+            <span class="p">),</span>
+            <span class="s2">"accident2019_minor_null_pct"</span><span class="p">:</span> <span class="nb">round</span><span class="p">(</span>
+                <span class="n">d2019</span><span class="p">[</span><span class="s2">"ผู้บาดเจ็บเล็กน้อย"</span><span class="p">]</span><span class="o">.</span><span class="n">null_count</span><span class="p">()</span> <span class="o">/</span> <span class="n">d2019</span><span class="o">.</span><span class="n">height</span> <span class="o">*</span> <span class="mi">100</span><span class="p">,</span> <span class="mi">1</span>
+            <span class="p">),</span>
+        <span class="p">}</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell-outputWrapper">
+<div class="jp-Collapser jp-OutputCollapser jp-Cell-outputCollapser">
+</div>
+<div class="jp-OutputArea jp-Cell-outputArea">
+<div class="jp-OutputArea-child jp-OutputArea-executeResult">
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[30]:</div>
+<div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
+<div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (1, 7)</small><table border="1" class="dataframe"><thead><tr><th>mismatched_null_in_serious</th><th>mismatched_null_in_minor</th><th>mismatched_null_in_either</th><th>mismatched_all_three_populated_but_inconsistent</th><th>accident2019_total_rows</th><th>accident2019_serious_null_pct</th><th>accident2019_minor_null_pct</th></tr><tr><td>i64</td><td>i64</td><td>i64</td><td>i64</td><td>i64</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>9872</td><td>9872</td><td>9872</td><td>0</td><td>19194</td><td>100.0</td><td>100.0</td></tr></tbody></table></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=fdaa5729">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p><strong>สรุป — สาเหตุเป็นระบบ ไม่ใช่ error รายแถว:</strong></p>
+<ul>
+<li><strong>ทั้ง 9,872 แถวที่ mismatch มี <code>ผู้บาดเจ็บสาหัส</code> และ <code>ผู้บาดเจ็บเล็กน้อย</code> เป็น null ทั้งคู่ 100%</strong> —
+ไม่มีแม้แต่แถวเดียวที่ทั้งสามคอลัมน์มีค่าแต่ขัดแย้งกันเอง</li>
+<li><strong><code>accident2019.csv</code> ทั้งไฟล์ (19,194 แถว) ไม่เคยเก็บคอลัมน์ <code>ผู้บาดเจ็บสาหัส</code>/<code>ผู้บาดเจ็บเล็กน้อย</code>
+เลย — null 100% ทั้งสองคอลัมน์</strong> มีแค่ <code>รวมจำนวนผู้บาดเจ็บ</code> (total) ที่ถูกเก็บ</li>
+<li><strong>ตัวเลข 9,872 นับน้อยกว่าความจริง</strong>: เป็นแค่ subset ของ 2019 ที่ total &gt; 0 (9,872 จาก 19,194 แถว)
+อีก 9,322 แถวที่เหลือ "ผ่าน" การเช็คแค่เพราะ null+null บังเอิญเท่ากับ total ที่เท่ากับ 0 ไม่ใช่เพราะ
+breakdown มีอยู่จริง</li>
+</ul>
+<p>นี่คือปรากฏการณ์แบบเดียวกับ P3 (คอลัมน์ที่ไม่เคยถูกเก็บทั้งไฟล์/ปี) ไม่ใช่ความเสียหายระดับแถว — บันทึกไว้ใน
+CLAUDE.md P7 แล้ว พร้อมเหตุผลว่าทำไมไม่ควร impute breakdown ของปี 2019 ขึ้นมาเอง</p>
+</div>
+</div>
+</div>
+</div>
 <div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=b68cc9c0">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
@@ -9639,13 +10065,25 @@ column จริง)</li>
 กันเป๊ะต้อง parse ตรงกัน — ตรวจแล้ว 1,193 กลุ่ม 0 mismatch, บวก <strong>completeness check 1,193 + 448 = 1,641
 ตรงกับจำนวนกลุ่ม duplicate ทั้งหมดพอดี</strong>) บวกรายงาน <code>date_ambiguous_pairs</code> แยกต่างหากสำหรับ 448 คู่ที่
 สลับตำแหน่ง แก้ด้วย safety net #2 เป็นตัวชี้ขาด</li>
-<li><strong>threshold 90 วันของ safety net #2 เป็นตัวเลขที่เดาไว้ก่อนเห็นข้อมูล ไม่มีหลักฐานรองรับ:</strong> โปรไฟล์
-<code>report_date − accident_date</code> จริงทั้ง dataset พบว่า <strong>28.6% ของทุกแถว (46,179/161,224) เกิน 90 วัน</strong> —
-ถ้าใช้เป็น hard gate จะทิ้งข้อมูลถูกต้องจำนวนมาก การกระจายตัวต่างกันจริงตามปีและหน่วยงาน (การทางพิเศษฯ
-p99 สูงถึง 1,219 วัน) เปลี่ยนไปใช้ <strong>p99 = 398 วัน</strong> (จากข้อมูลจริง) แทน — รัน 448 คู่ใหม่ด้วย threshold นี้
-ได้ <strong>resolved 138 / both valid 310 / neither valid 0</strong> (จากเดิม 222/196/30) — ทั้ง 30 กรณี "neither valid"
-เดิมกลายเป็น valid ทั้งหมด ยืนยันว่าเป็น lag ที่ยาวถูกต้องตามจริง ไม่ใช่ข้อมูลเสีย — <code>date_certainty</code> design
-note อัปเดตเป็น 310 กลุ่ม (620 แถว) สำหรับ Phase 2 (ยังไม่ implement)</li>
+<li><strong>threshold 90 วันของ safety net #2 เป็นตัวเลขที่เดาไว้ก่อนเห็นข้อมูล ไม่มีหลักฐานรองรับ — และ
+threshold เดียว (แม้แก้เป็น 398 จากข้อมูลจริงแล้ว) ก็ยังผิด เพราะทำหน้าที่ 2 อย่างที่ต้องการคุณสมบัติ
+ตรงข้ามกัน:</strong> Gate A (ความถูกต้องของแถว) ต้องการ threshold หลวม แต่การแยกแยะ 448 คู่ต้องการ threshold แน่น
+— ตอนขยายจาก 90→398 resolved unique ลดจาก 222→138 (310 ตัดสินไม่ได้ แย่กว่าจุดเริ่มต้น) แก้ด้วย
+<strong>threshold ต่อหน่วยงาน</strong> (393/235/1,219 วัน สำหรับกรมทางหลวง/กรมทางหลวงชนบท/การทางพิเศษฯ) พบว่า global
+398 ปล่อยผ่านกรมทางหลวงชนบทมากเกินไป (0.10% เทียบกับ 0.97% ที่ควรจะเป็น) และเข้มเกินไปกับการทางพิเศษฯ
+(10.87% เทียบกับ 0.92%) — threshold ต่อหน่วยงานดึง resolved unique กลับมาที่ 156 (จาก 138) โดย neither
+valid ยังเป็น 0 — ปรับปรุงทั้ง Gate A และการแยกแยะพร้อมกัน ไม่ใช่การแลกกัน ออกแบบ (ยังไม่ implement)
+likelihood-comparison แทน binary test สำหรับ 292 คู่ที่เหลือ ไว้ให้ Phase 2 ด้วย — <code>date_certainty</code>
+design note อัปเดตเป็น 292 กลุ่ม (584 แถว)</li>
+<li><strong>row-count reconciliation (161,307 vs 161,224 ที่ parse ได้) พบข้อมูลใหม่:</strong> 83 แถวที่หายไปแบ่งเป็น 78
+(null <code>วันที่รายงาน</code>) + 1 (Excel serial เดี่ยวใน <code>accident2020.csv</code>, รู้อยู่แล้ว) + <strong>4 แถวใหม่ที่ยังไม่
+เคยบันทึก</strong>: <code>accident2022.csv</code> มี <code>วันที่รายงาน</code> เป็น literal string <code>"//"</code> (ไม่ใช่ null แต่ไม่ใช่วันที่
+จริง) — บันทึกลง CLAUDE.md P7 แล้ว</li>
+<li><strong>ยอดผู้บาดเจ็บไม่ตรง 9,872 แถว มีสาเหตุเป็นระบบ ไม่ใช่ error สุ่ม (owner-requested follow-up):</strong> ทิศทาง
+เดียวล้วน (<code>total &gt; sum</code> เสมอ, ไม่มีกลับด้านเลย), กระจุก 100% ที่ <code>accident2019.csv</code> ไฟล์เดียว, และทั้ง
+9,872 แถวมี <code>ผู้บาดเจ็บสาหัส</code>/<code>ผู้บาดเจ็บเล็กน้อย</code> เป็น null ทั้งคู่ (ไม่มีแถวไหนที่ทั้งสามคอลัมน์มีค่าแต่
+ขัดแย้งกัน) — สาเหตุจริงคือ <code>accident2019.csv</code> ทั้งไฟล์ไม่เคยเก็บ breakdown สาหัส/เล็กน้อยเลย (null 100%)
+มีแค่ total ตัวเลข 9,872 นับน้อยกว่าความจริงด้วยซ้ำ (เป็นแค่ subset ที่ total &gt; 0) — บันทึกลง CLAUDE.md P7</li>
 <li><strong>P5 conflict rate 74% ส่วนใหญ่ไม่ใช่ conflict จริง:</strong> ตรวจ 20 คู่ตรง ๆ แล้ว <strong>85.1%</strong> ของคู่ที่ขัดแย้งกัน
 เป็นแค่คำพ้องความหมาย/รูปแบบเขียนต่างกัน (<code>"ไม่มีความลาดชัน"</code> ↔ <code>"ที่ราบ"</code> ฯลฯ) <strong>ต้อง harmonize
 taxonomy ก่อน แล้วค่อย dedup</strong> ไม่ใช่คิด tie-break rule ก่อน</li>

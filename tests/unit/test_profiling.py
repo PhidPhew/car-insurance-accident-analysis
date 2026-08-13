@@ -14,6 +14,7 @@ from rri.utils.profiling import (
     compute_dedup_impact,
     compute_report_lag_days,
     count_resolved_by_normalization,
+    count_rows_over_group_thresholds,
     count_rows_over_lag_threshold,
     detect_delimiter,
     detect_line_ending,
@@ -816,6 +817,98 @@ class TestDiscriminateTransposedDatePairs:
         assert result.resolved_unique == 1
 
 
+class TestDiscriminateTransposedDatePairsPerGroupThreshold:
+    def test_dict_threshold_without_group_column_raises(self) -> None:
+        df = pl.DataFrame({"code": ["A"], "accident": ["4/12/2023"], "report": ["4/15/2023"]})
+        with pytest.raises(ValueError, match="threshold_group_column"):
+            discriminate_transposed_date_pairs(
+                df,
+                "code",
+                ["A"],
+                "accident",
+                "report",
+                month_first=True,
+                max_report_lag_days={"x": 90},
+            )
+
+    def test_group_value_missing_from_threshold_dict_raises_keyerror(self) -> None:
+        df = pl.DataFrame(
+            {
+                "code": ["A", "A"],
+                "accident": ["4/12/2023", "12/4/2023"],
+                "report": ["4/15/2023", "4/15/2023"],
+                "agency": ["unmapped", "unmapped"],
+            }
+        )
+        with pytest.raises(KeyError):
+            discriminate_transposed_date_pairs(
+                df,
+                "code",
+                ["A"],
+                "accident",
+                "report",
+                month_first=True,
+                max_report_lag_days={"known": 90},
+                threshold_group_column="agency",
+            )
+
+    def test_wide_threshold_resolves_what_the_default_would_flag_as_neither_valid(self) -> None:
+        # April 12 -> report Nov 1 is a ~203-day gap: invalid under the old
+        # global 90-day rule (would be "neither_valid" alongside the
+        # negative-gap Dec 4 candidate), but valid once this group's own
+        # agency threshold (1000) is used instead.
+        df = pl.DataFrame(
+            {
+                "code": ["G1", "G1"],
+                "accident": ["4/12/2023", "12/4/2023"],
+                "report": ["11/1/2023", "11/1/2023"],
+                "agency": ["wide", "wide"],
+            }
+        )
+        result = discriminate_transposed_date_pairs(
+            df,
+            "code",
+            ["G1"],
+            "accident",
+            "report",
+            month_first=True,
+            max_report_lag_days={"wide": 1000, "narrow": 50},
+            threshold_group_column="agency",
+        )
+        assert result.resolved_unique == 1
+        assert result.resolutions[0].valid_dates == [date(2023, 4, 12)]
+
+    def test_different_groups_in_the_same_call_use_their_own_threshold(self) -> None:
+        # Same 60-day gap in both groups: G2's "narrow" agency (threshold
+        # 50) rejects it, G1's "wide" agency (threshold 1000) would not --
+        # proves the lookup is per-row, not a single value for the whole call.
+        df = pl.DataFrame(
+            {
+                "code": ["G1", "G1", "G2", "G2"],
+                "accident": ["1/1/2023", "1/1/2023", "1/1/2023", "1/1/2023"],
+                "report": ["3/2/2023", "3/2/2023", "3/2/2023", "3/2/2023"],
+                "agency": ["wide", "wide", "narrow", "narrow"],
+            }
+        )
+        # Not a real transposed pair (identical raw strings) -- only used
+        # here to exercise per-row threshold lookup via candidate validity,
+        # so treat each code as its own single-candidate "group".
+        result = discriminate_transposed_date_pairs(
+            df,
+            "code",
+            ["G1", "G2"],
+            "accident",
+            "report",
+            month_first=True,
+            max_report_lag_days={"wide": 1000, "narrow": 50},
+            threshold_group_column="agency",
+        )
+        g1 = next(r for r in result.resolutions if r.group_key == "G1")
+        g2 = next(r for r in result.resolutions if r.group_key == "G2")
+        assert g1.valid_dates == [date(2023, 1, 1)]  # 60-day gap OK under wide=1000
+        assert g2.valid_dates == []  # 60-day gap fails under narrow=50
+
+
 class TestParseExcelSerialDate:
     def test_known_serial(self) -> None:
         # The real accident2020.csv anomaly noted in CLAUDE.md P1.
@@ -933,6 +1026,29 @@ class TestCountRowsOverLagThreshold:
     def test_threshold_boundary_is_exclusive(self) -> None:
         df = pl.DataFrame({"lag_days": [90]})
         assert count_rows_over_lag_threshold(df, 90) == 0
+
+
+class TestCountRowsOverGroupThresholds:
+    def test_each_group_uses_its_own_threshold(self) -> None:
+        df = pl.DataFrame(
+            {
+                "agency": ["A", "A", "A", "B", "B", "B"],
+                "lag_days": [10, 50, 95, 5, 30, 300],
+            }
+        )
+        # A: only 95 exceeds 90 -> 1. B: only 300 exceeds 235 -> 1.
+        assert count_rows_over_group_thresholds(df, "agency", {"A": 90, "B": 235}) == 2
+
+    def test_negative_lag_excluded_per_group(self) -> None:
+        # -500 must never count as "over threshold" no matter how negative;
+        # only the 10 (which exceeds threshold 5) should be counted.
+        df = pl.DataFrame({"agency": ["A", "A"], "lag_days": [-500, 10]})
+        assert count_rows_over_group_thresholds(df, "agency", {"A": 5}) == 1
+
+    def test_unmapped_group_raises_keyerror(self) -> None:
+        df = pl.DataFrame({"agency": ["unmapped"], "lag_days": [10]})
+        with pytest.raises(KeyError):
+            count_rows_over_group_thresholds(df, "agency", {"known": 90})
 
 
 class TestReportLagQuantilesByGroup:

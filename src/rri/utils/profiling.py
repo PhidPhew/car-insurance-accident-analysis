@@ -805,22 +805,34 @@ def discriminate_transposed_date_pairs(
     raw_date_column: str,
     raw_report_date_column: str,
     month_first: bool,
-    max_report_lag_days: int = 90,
+    max_report_lag_days: int | dict[str, int] = 90,
+    threshold_group_column: str | None = None,
 ) -> TransposedDatePairDiscrimination:
     """Resolve transposed-date duplicate groups using safety net #2 as a discriminator.
 
     For each group in `group_keys_to_resolve`, each distinct raw date string
     is one candidate date. A candidate is valid only if EVERY row carrying
     that raw string satisfies both safety-net-#2 conditions against its own
-    report date (`accident_date <= report_date`, gap <= `max_report_lag_days`)
-    -- so a 3-row group (one candidate date repeated across two rows) requires
-    both of those rows to agree, not just one.
+    report date (`accident_date <= report_date`, gap <= threshold) -- so a
+    3-row group (one candidate date repeated across two rows) requires both
+    of those rows to agree, not just one.
+
+    `max_report_lag_days` is normally a single global threshold. Pass a dict
+    instead (mapping a value of `threshold_group_column`, e.g. agency, to
+    its own threshold) to use a subgroup-specific bound -- appropriate when
+    the legitimate lag distribution varies sharply by subgroup (CLAUDE.md:
+    agency p99 ranges from 235 to 1,219 days). When a dict is given,
+    `threshold_group_column` is required and every row's value in that
+    column must be a key in the dict.
 
     If exactly one candidate is valid, that is the resolved true date. If
     both are valid, the pair is genuinely undecidable from this evidence. If
     neither is valid, something else is wrong with the row and it must be
     flagged rather than resolved either way.
     """
+    if isinstance(max_report_lag_days, dict) and threshold_group_column is None:
+        raise ValueError("threshold_group_column is required when max_report_lag_days is a dict")
+
     resolutions = []
     for key in group_keys_to_resolve:
         sub = df.filter(pl.col(group_key) == key)
@@ -831,9 +843,15 @@ def discriminate_transposed_date_pairs(
             if candidate is None:
                 continue
             valid = True
-            for accident_raw, report_raw in zip(
+            threshold_values: list[Any] = (
+                rows[threshold_group_column].to_list()
+                if threshold_group_column is not None
+                else [None] * rows.height
+            )
+            for accident_raw, report_raw, threshold_group_value in zip(
                 rows[raw_date_column].to_list(),
                 rows[raw_report_date_column].to_list(),
+                threshold_values,
                 strict=True,
             ):
                 accident_dt = parse_slash_date(accident_raw, month_first=month_first)
@@ -842,7 +860,12 @@ def discriminate_transposed_date_pairs(
                     valid = False
                     break
                 gap = (report_dt - accident_dt).days
-                if gap < 0 or gap > max_report_lag_days:
+                threshold = (
+                    max_report_lag_days[threshold_group_value]
+                    if isinstance(max_report_lag_days, dict)
+                    else max_report_lag_days
+                )
+                if gap < 0 or gap > threshold:
                     valid = False
                     break
             candidate_valid[candidate] = valid
@@ -979,6 +1002,27 @@ def count_rows_over_lag_threshold(
     return int(
         df_with_lag.filter((pl.col(lag_column) >= 0) & (pl.col(lag_column) > threshold_days)).height
     )
+
+
+def count_rows_over_group_thresholds(
+    df_with_lag: pl.DataFrame,
+    group_column: str,
+    thresholds_by_group: dict[str, int],
+    lag_column: str = "lag_days",
+) -> int:
+    """Like `count_rows_over_lag_threshold`, but each `group_column` value uses its own threshold.
+
+    Every group present in `df_with_lag` must be a key in `thresholds_by_group`
+    -- this raises `KeyError` on an unmapped group rather than silently
+    skipping or falling back to a default, so a new/unexpected group value
+    can't be quietly excluded from the count.
+    """
+    total = 0
+    for group_value in df_with_lag[group_column].unique().to_list():
+        threshold = thresholds_by_group[group_value]
+        subset = df_with_lag.filter(pl.col(group_column) == group_value)
+        total += count_rows_over_lag_threshold(subset, threshold, lag_column)
+    return total
 
 
 def summarize_report_lag(

@@ -688,3 +688,78 @@ check that revealed reality wasn't quite what everyone assumed, in a place
 nobody had thought to look. Both come from the same discipline -- write
 the assertion, run it against the real file, trust what comes back over
 what seemed obvious going in.
+
+---
+
+## 2026-08-13 — Closing Phase 1: one number doing two jobs, and two "trust but verify" catches
+
+The owner called out three things before Phase 2: a design flaw in the
+threshold work just finished, an unreconciled row count, and an
+under-investigated data-quality number. All three came from the same
+practice -- don't accept "close enough," trace every number to zero.
+
+**The threshold flaw was a real design error, not a refinement.** The
+previous round fixed the invented 90-day threshold by measuring the real
+distribution and using p99 (398 days) -- correct for Gate A (row
+validity), which wants a loose bound. But the same 398 was also being used
+to discriminate the 448 transposed date pairs, which wants a *tight*
+bound -- a loose threshold makes both candidate dates look plausible more
+often, which is exactly why resolved-unique had dropped from 222 (at the
+old, wrong 90) to 138 (at the new, correct-for-Gate-A 398). One number
+serving two jobs with opposite requirements was the actual bug, not the
+90-vs-398 question I'd already "fixed." The owner's fix: per-agency
+thresholds, since agency accounts for most of the lag-distribution spread
+already measured. Implemented as a `dict[str, int]` +
+`threshold_group_column` option on `discriminate_transposed_date_pairs`
+(strict `KeyError` on an unmapped group, no silent fallback) and a new
+`count_rows_over_group_thresholds` for Gate A. Result: resolved-unique
+recovered to 156 (from 138) with neither-valid still at 0 -- confirming
+Gate A precision and discrimination improve together once each agency
+gets its own threshold instead of one number doing both jobs. The
+precision cost of the single global number was concrete and asymmetric:
+under global 398, Rural Roads was flagged at only 0.10% (its own
+distribution says ~1% should be outliers -- genuine anomalies were slipping
+through as "valid") while Expressway was flagged at 10.87% (should be
+~0.92% -- ordinary rows were being wrongly rejected). Also designed (not
+implemented, per instruction -- Phase 2 work) a likelihood-comparison
+replacement for the binary pass/fail test: score each candidate by how
+close its implied lag is to the agency's median, pick the closer one, and
+record the margin as a confidence signal -- turns most of the remaining
+292 undecidable pairs into decisions with a confidence level instead of a
+flat "can't tell."
+
+**The row-count gap was real and found something new.** 161,307 total −
+161,224 parsed = 83, and only 78 had been explained (null report dates).
+Tracing the other 5 by row identity (not just re-deriving the 78 and
+assuming the rest was noise) found 1 already-documented stray (the
+`accident2020.csv` Excel-serial row) plus 4 rows in `accident2022.csv`
+where `วันที่รายงาน` is the literal string `"//"` -- not null (doesn't match
+the configured `null_values`), not a date, a garbage placeholder that had
+never been caught by any prior profiling pass because nothing had looked
+for non-null-but-non-date values in that column specifically. 78 + 1 + 4 =
+83, now fully accounted for. Recorded in CLAUDE.md P7.
+
+**The injury-mismatch investigation turned "flag it" into a specific,
+actionable root cause.** Asked for three things: direction, concentration,
+and null-pattern. All three turned out maximally decisive rather than
+mixed: 100% of the 9,872 mismatched rows have `total > sum` (never the
+reverse), 100% are in `accident2019.csv` (zero in any other year), and
+100% have BOTH `ผู้บาดเจ็บสาหัส` and `ผู้บาดเจ็บเล็กน้อย` null (zero rows
+have all three columns populated but genuinely conflicting). Checking
+`accident2019.csv` directly confirmed the real cause: that entire file
+(19,194 rows) never captured the serious/minor breakdown at all -- only
+the total. The 9,872 figure is actually an undercount of the scope, since
+it only flags the subset of 2019 where total > 0; the other 9,322 rows
+"pass" purely because null + null coincidentally equals a total of 0.
+This is the same file-level column-omission pattern as P3's twin columns,
+not row-level corruption -- reported as fact, no imputation, per explicit
+instruction ("report the facts; I'll set the policy").
+
+**Why this matters for the assignment:** the threshold item is the
+sharper lesson of the two -- I had already "fixed" this once this session
+(90 → 398) and reported it as resolved, and it still had a real design
+flaw underneath, because I'd verified the number against data but not
+verified that one number was even the right shape of thing to compute.
+Being told to verify isn't a one-time gate; the same measured, evidence-based
+discipline has to be re-applied to your own previous fix, not just the
+original guess.
