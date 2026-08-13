@@ -1,0 +1,92 @@
+raw_value,canonical_group,row_count
+ทางตรง+ไม่มีความลาดชัน,straight_road,96572
+ทางตรง+ที่ราบ,straight_road,20667
+ทางโค้งกว้าง+ไม่มีความลาดชัน,wide_curve,15284
+ทางโค้งกว้าง+ที่ลาดชัน,wide_curve,5370
+ทางโค้งปกติ+ที่ราบ,normal_curve,3083
+ทางตรง,straight_road,1745
+ทางเชื่อมเข้าพื้นที่สาธารณะ/เชิงพาณิชย์,entrance_area,1576
+ทางแยกรูปตัว T+ที่ราบ,t_junction,1333
+ทางตรง+ที่ลาดชัน,straight_road,1269
+ทางแยกรูปตัว ++ที่ราบ,cross_junction,938
+ทางตรง+ไม่มีความลาดชัน/ที่ราบ,straight_road,727
+ทางเชื่อมเข้าพื้นที่ส่วนบุคคล,entrance_area,655
+ทางสี่แยก,cross_junction,644
+ทางสามแยก (T),t_junction,631
+ทางโค้งปกติ+บนช่วงลาดชัน,normal_curve,615
+ทางโค้งหักศอก+ที่ลาดชัน,sharp_curve,486
+ทางโค้งหักศอก+ไม่มีความลาดชัน,sharp_curve,404
+ทางสามแยก (Y),y_junction,325
+ทางแยกต่างระดับ/Ramps,interchange_or_grade_separated_uturn,320
+ทางโค้งกว้าง,wide_curve,307
+เข้าพื้นที่สาธารณะหรือเชิงพานิชย์,entrance_area,281
+สะพาน+ที่ราบ,bridge,271
+ทางโค้งปกติ+ยอดโค้ง,normal_curve,249
+ทางโค้งกว้าง+ไม่มีความลาดชัน/ที่ราบ,wide_curve,243
+ทางตรง+บนช่วงลาดชัน,straight_road,238
+อื่นๆ,other,224
+ทางแยกรูปตัว Y+ที่ราบ,y_junction,196
+ทางเชื่อมเข้าบริเวณหน้าโรงเรียน,entrance_area,185
+ทางโค้งปกติ+ก้นโค้ง,normal_curve,155
+เข้าพื้นที่ส่วนบุคคล,entrance_area,133
+ทางแยกต่างระดับ / Ramps+ที่ราบ,interchange_or_grade_separated_uturn,102
+ทางสามแยก(T),t_junction,91
+จุดกลับรถต่างระดับ+ที่ราบ,interchange_or_grade_separated_uturn,87
+ทางร่วม,other,65
+ทางตรง+โค้งดิ่ง/ที่ลาดชัน,straight_road,62
+วงเวียน+ที่ราบ,roundabout,55
+ทางโค้งหักศอก+ที่ราบ,sharp_curve,49
+ทางสามแยก(Y),y_junction,48
+ทางลอด+ที่ราบ,underpass_or_overpass,47
+สถานี/จุดขึ้นลงระบบขนส่งสาธารณะ+ที่ราบ,other,45
+ทางโค้งกว้าง+โค้งดิ่ง/ที่ลาดชัน,wide_curve,41
+ทางคนเดินเท้า+ที่ราบ,pedestrian_crossing,37
+ทางยกระดับ+ที่ราบ,underpass_or_overpass,34
+เข้าสถานศึกษา / สถานที่ราชการ,entrance_area,34
+ทางโค้งหักศอก+บนช่วงลาดชัน,sharp_curve,26
+ทางโค้งหักศอก+ไม่มีความลาดชัน/ที่ราบ,sharp_curve,26
+ทางตรง+ยอดโค้ง,straight_road,23
+จุดกลับรถต่างระดับ,interchange_or_grade_separated_uturn,22
+ทางโค้งหักศอก+โค้งดิ่ง/ที่ลาดชัน,sharp_curve,19
+ทางลอด+บนช่วงลาดชัน,underpass_or_overpass,18
+ทางแยกรูปตัว T+บนช่วงลาดชัน,t_junction,18
+ทางโค้งหักศอก+ยอดโค้ง,sharp_curve,18
+วงเวียน,roundabout,18
+สะพาน+บนช่วงลาดชัน,bridge,18
+จุดกลับรถต่างระดับ+ยอดโค้ง,interchange_or_grade_separated_uturn,16
+ทางแยกรูปตัว ++บนช่วงลาดชัน,cross_junction,16
+ทางโค้งหักศอก+ก้นโค้ง,sharp_curve,13
+มีการเปลี่ยนความกว้างช่องจราจร+ที่ราบ,other,13
+จุดกลับรถต่างระดับ+บนช่วงลาดชัน,interchange_or_grade_separated_uturn,10
+ทางแยกรูปตัว T+ยอดโค้ง,t_junction,10
+ทางรถไฟตัดผ่าน+ที่ราบ,other,9
+ทางแยกรูปตัว T+ก้นโค้ง,t_junction,9
+สะพาน+ยอดโค้ง,bridge,9
+ทางตรง+ก้นโค้ง,straight_road,8
+ทางโค้งหักศอก,sharp_curve,8
+ทางคนเดินเท้า,pedestrian_crossing,7
+ทางม้าลาย+ที่ราบ,pedestrian_crossing,7
+ทางแยกต่างระดับ / Ramps+บนช่วงลาดชัน,interchange_or_grade_separated_uturn,7
+มีการเปลี่ยนจำนวนช่องจราจร,other,7
+ทางแยกรูปตัว ++ยอดโค้ง,cross_junction,6
+สะพาน (สะพานข้ามแม่น้ำ/ข้ามคลอง),bridge,6
+ทางแยกต่างระดับ / Ramps+ยอดโค้ง,interchange_or_grade_separated_uturn,5
+ทางแยกรูปตัว Y+บนช่วงลาดชัน,y_junction,4
+ทางยกระดับ+บนช่วงลาดชัน,underpass_or_overpass,3
+ทางแยกรูปตัว Y+ยอดโค้ง,y_junction,3
+สะพาน+ก้นโค้ง,bridge,3
+ทางยกระดับ+ก้นโค้ง,underpass_or_overpass,2
+ทางรถจักรยานยนต์+ที่ราบ,other,2
+ทางแยกต่างระดับ / Ramps+ก้นโค้ง,interchange_or_grade_separated_uturn,2
+ทางแยกรูปตัว Y+ก้นโค้ง,y_junction,2
+สะพาน,bridge,2
+จุดตัดทางรถไฟ,other,1
+ทางคนเดินเท้า+บนช่วงลาดชัน,pedestrian_crossing,1
+ทางจักรยาน+ที่ราบ,other,1
+ทางม้าลาย/คนเดินข้าม,pedestrian_crossing,1
+ทางรถจักรยานยนต์,other,1
+ทางลอด+ก้นโค้ง,underpass_or_overpass,1
+ทางลอด+ยอดโค้ง,underpass_or_overpass,1
+ทางแยกรูปตัว +,cross_junction,1
+ทางแยกรูปตัว ++ก้นโค้ง,cross_junction,1
+สถานี/จุดขึ้นลงระบบขนส่งสาธารณะ+ยอดโค้ง,other,1

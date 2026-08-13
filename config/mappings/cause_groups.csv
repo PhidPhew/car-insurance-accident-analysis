@@ -1,0 +1,121 @@
+raw_value,canonical_group,row_count
+ขับรถเร็วเกินอัตรากำหนด,speeding,99967
+ขับรถเร็วเกินอัตราที่กำหนด,speeding,14636
+คน/รถ/สัตว์ตัดหน้ากระชั้นชิด,following_too_close_or_cutting,10982
+หลับใน,drowsy_or_fatigue,10923
+อุปกรณ์ยานพาหนะบกพร่อง,vehicle_mechanical_defect,2782
+เมาสุรา,alcohol_or_substance,2698
+ยางเสื่อมสภาพ/ยางแตก,tire_defect,1868
+มีการตัดหน้าระยะกระชั้นชิด,following_too_close_or_cutting,1635
+ฝ่าฝืนสัญญาณไฟ/เครื่องหมายจราจร,signal_or_sign_violation,1488
+ถนนลื่น,slippery_road_surface,1245
+ไม่คุ้นเคยเส้นทาง/ขับรถไม่ชำนาญ,driver_inexperience,1233
+แซงรถอย่างผิดกฎหมาย,illegal_overtaking,744
+มีกองวัสดุ/สิ่งกีดขวาง,obstacle_or_blocked_view,623
+ขับรถย้อนศร,wrong_way_driving,580
+ยางรถยนต์ชำรุด,tire_defect,552
+สูญเสียการควบคุม,loss_of_control,534
+ไม่ให้สัญญาณชะลอ/เลี้ยว,no_turn_signal_given,428
+ระบบห้ามล้อขัดข้อง/ระบบเบรกชำรุด,brake_or_steering_defect,404
+ถนนลื่น (เนื่องจากสภาพอากาศ),slippery_road_surface,402
+บรรทุกเกินอัตรา,overloading,402
+ขับรถตามกระชั้นชิด,following_too_close_or_cutting,333
+เปลี่ยนช่องทางกะทันหัน,improper_lane_position,267
+ทางโค้งอันตราย,dangerous_road_geometry,238
+ความเมื่อยล้า,drowsy_or_fatigue,236
+ความประมาท/เร่งรีบ (วิ่งตัดหน้า),following_too_close_or_cutting,235
+แสงสว่างไม่เพียงพอ,insufficient_lighting_or_visibility,233
+ไม่ยอมให้รถที่มีสิทธิ์ไปก่อน,right_of_way_violation,219
+โรคประจำตัว,driver_health_condition,204
+ฝ่าฝืนสัญญาณไฟ / เครื่องหมายจราจร,signal_or_sign_violation,191
+อื่นๆ,other,187
+ขับรถไม่ชำนาญ / ไม่เป็น,driver_inexperience,171
+ใช้โทรศัพท์เคลื่อนที่ขณะขับรถ,driver_distraction,148
+ฝ่าฝืนป้ายหยุดขณะออกจากทางร่วมทางแยก,signal_or_sign_violation,122
+ระยะการมองเห็นไม่เพียงพอ,insufficient_lighting_or_visibility,111
+เบรคชำรุด,brake_or_steering_defect,110
+ไม่ให้สัญญาณชะลอ / เลี้ยว,no_turn_signal_given,110
+เครื่องยนต์ขัดข้อง,vehicle_mechanical_defect,99
+รถเสียไม่แสดงเครื่องหมายหรือสัญญาณไฟที่กำหนด,other,98
+มีสิ่งกีดขวางบนทางหลวง (วัสดุหรือสัตว์),obstacle_or_blocked_view,89
+หยุดรถกะทันหัน,sudden_braking,84
+ขับรถกระชั้นชิด,following_too_close_or_cutting,73
+ไม่ให้สัญญาณเข้าจอด/ออกจากที่จอด,no_turn_signal_given,71
+แสงสว่างไม่เพียงพอหรือทัศนวิสัยกลางคืนไม่ดี,insufficient_lighting_or_visibility,62
+ขับรถคร่อมเส้นแบ่งทิศทาง,improper_lane_position,58
+ขับรถผิดช่องทาง,improper_lane_position,56
+ระยะมองเห็นจำกัด,insufficient_lighting_or_visibility,56
+ระบบไฟฟ้าของยานพาหนะขัดข้อง,vehicle_mechanical_defect,49
+ขับรถไม่เปิดไฟ/ไม่ใช้แสงสว่างตามกำหนด,insufficient_lighting_or_visibility,39
+ถนนชำรุด,damaged_road_surface,36
+ใช้โทรศัพท์ขณะขับรถ,driver_distraction,35
+"ลักษณะของถนน เช่น เป็นทางโค้ง, เนินเขา, ผิวทางแคบ",dangerous_road_geometry,34
+ไม่ให้สิทธิรถที่มาก่อนผ่านทาง เช่น ทางแยก,right_of_way_violation,33
+ละสายตาจากการขับขี่,driver_distraction,30
+ปัญหาทางสายตา,driver_health_condition,29
+มีสิ่งรบกวนภายในรถ,driver_distraction,23
+อาการป่วยหรือการไร้ความสามารถทางประสาทหรือร่างกาย,driver_health_condition,23
+กำลังเครื่องยนต์ไม่เพียงพอ,vehicle_mechanical_defect,18
+อาการป่วย หรือการไร้ความสามารถทางประสาทหรือร่างกาย,driver_health_condition,18
+การกระทำที่สุ่มเสี่ยงบนถนน,other,17
+ขับขี่ช้าเกินเนื่องจากลักษณะของยานพาหนะ (เช่น แทรคเตอร์),slow_moving_vehicle,16
+การซ่อม/สร้างบนสายทาง,road_work,13
+ถนนแคบ,damaged_road_surface,13
+พวงมาลัยชำรุด,brake_or_steering_defect,13
+มีคราบสะสมบนผิวถนน เช่น โคลน น้ำมัน,slippery_road_surface,12
+มีสิ่งบดบังการมองเห็น,obstacle_or_blocked_view,11
+ไม่คุ้นเคยกับการขับขี่ด้านซ้าย,driver_inexperience,11
+ไม่ให้สัญญาณเข้าจอด หรือออกจากที่จอด,no_turn_signal_given,11
+มีสิ่งรบกวนภายนอกรถ,driver_distraction,10
+รถเสียไม่แสดงเครื่องหมาย/สัญญาณตามที่กำหนด,other,9
+ระบบบังคับเลี้ยวขัดข้อง,brake_or_steering_defect,9
+ระบบสัญญาณไฟจราจรขัดข้อง,other,9
+ไม่มีป้ายจราจร,other,9
+ผิวถนนสภาพแย่หรือชำรุด,damaged_road_surface,8
+ข้ามถนนโดยมีรถจอดหรือวัตถุข้างทางบดบังผู้ขับขี่,obstacle_or_blocked_view,7
+ใช้สารออกฤทธิ์ต่อจิตและประสาท,alcohol_or_substance,7
+ฝ่าฝืนป้ายหยุดขณะออกจากทางร่วมแยก,signal_or_sign_violation,6
+มีสิ่งรบกวนภายในรถ เช่น มีเด็ก มีสัตว์ภายในรถ,driver_distraction,6
+มึนเมาจากแอลกอฮอล์,alcohol_or_substance,5
+ไม่มีระบบสัญญาณไฟจราจร,other,5
+ทำงานบนถนน,road_work,4
+ยานพาหนะเคลื่อนที่ช้า,slow_moving_vehicle,4
+ไฟฟ้าแสงสว่างชำรุด,insufficient_lighting_or_visibility,4
+ขับรถไม่เปิดไฟ / ไม่ใช้แสงสว่างตามกำหนด,insufficient_lighting_or_visibility,3
+อุปกรณ์ยานพาหนะบกพร่อง (ระบุ),vehicle_mechanical_defect,3
+ไม่ขับรถในช่องทางเดินรถซ้ายสุดในถนนที่มี 4 ช่องทาง,improper_lane_position,3
+ไม่คุ้นชินกับยานพาหนะ เช่น กรณีเช่ารถ,driver_inexperience,3
+ไม่คุ้นเคยกับการขับขี่ด้านซ้าย เช่น กรณีชาวต่างชาติ,driver_inexperience,3
+ไม่มีมูลเหตุสันนิษฐานที่เกี่ยวข้องด้านสภาพสายทาง,no_cause_reported,3
+ป้ายจราจรถูกบดบัง,obstacle_or_blocked_view,2
+ระยะปลอดภัยข้างทางไม่เพียงพอ,other,2
+เบรกกะทันหัน,sudden_braking,2
+เบรคกระทันหัน,brake_or_steering_defect,2
+ขับขี่ย้อนศร,wrong_way_driving,1
+ขับชิดขอบทางขวามากเกินไป,other,1
+ขับชิดซ้ายมากเกินไป,improper_lane_position,1
+ขับรถชิดขวามากไป,improper_lane_position,1
+ขับรถชิดซ้ายมากเกินไป,improper_lane_position,1
+ขับรถช้าลง,other,1
+ความต่างระดับของไหล่ทางกับผิวทาง,damaged_road_surface,1
+นั่งบุคคลขับรถย้อนทิศทางจราจร,wrong_way_driving,1
+บรรทุกสูงเกินกำหนด,overloading,1
+ป้ายจราจรชำรุด,other,1
+ผู้ขับขี่ไม่เห็นเสาไฟส่องสว่าง,insufficient_lighting_or_visibility,1
+ฝาตู้เก็บของด้านข้างเปิด,vehicle_mechanical_defect,1
+มีสิ่งรบกวนภายนอก เช่น ป้ายจราจรมีสีที่สว่างเกินไป,driver_distraction,1
+รถมีความสูงเกินกำหนด,vehicle_mechanical_defect,1
+ระบบบังขับเลี้ยวชำรุด,brake_or_steering_defect,1
+ระบบไฟขัดข้องในห้องเครื่อง,vehicle_mechanical_defect,1
+ระบบไฟฟ้ขัดข้อง,vehicle_mechanical_defect,1
+ระบบไฟฟ้าขัดข้อง,other,1
+สัญญาณไฟจราจรชำรุด,other,1
+หางพ่วงหลุด,vehicle_mechanical_defect,1
+อุปกรณ์นำทางชำรุด,vehicle_mechanical_defect,1
+เข้าผิดช่อง,improper_lane_position,1
+เข้าผิดช่องทางผิด,improper_lane_position,1
+เบครกระทันหัน,other,1
+เบรคกะทันหัน,sudden_braking,1
+เส้นแบ่งทิศทางจราจรชำรุด,other,1
+ไฟส่องสว่างชำรุด,insufficient_lighting_or_visibility,1
+ไม่มีเส้นแบ่งทิศทางจราจร,other,1
