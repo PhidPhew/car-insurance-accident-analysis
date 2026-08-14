@@ -21,6 +21,10 @@ dependencies = [
     "requests>=2.32",
     "holidays>=0.102",
     "pymysql>=1.1",
+    "statsmodels>=0.14.6",
+    "lightgbm>=4.7.0",
+    "shap>=0.51.0",
+    "scikit-learn>=1.9.0",
 ]
 
 [dependency-groups]
