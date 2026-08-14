@@ -1,0 +1,36 @@
+raw_value,canonical_group,source
+รถปิคอัพบรรทุก 4 ล้อ,pickup,accident_first_vehicle
+รถปิคอัพโดยสาร,pickup,accident_first_vehicle
+รถยนต์นั่งส่วนบุคคล/รถยนต์นั่งสาธารณะ,passenger_car,accident_first_vehicle
+รถตู้,passenger_car,accident_first_vehicle
+รถจักรยานยนต์,motorcycle,accident_first_vehicle
+รถบรรทุกมากกว่า 10 ล้อ (รถพ่วง),heavy_truck_bus,accident_first_vehicle
+รถบรรทุก 6 ล้อ,heavy_truck_bus,accident_first_vehicle
+รถบรรทุกมากกว่า 6 ล้อ ไม่เกิน 10 ล้อ,heavy_truck_bus,accident_first_vehicle
+รถโดยสารขนาดใหญ่,heavy_truck_bus,accident_first_vehicle
+รถสามล้อเครื่อง,other,accident_first_vehicle
+รถจักรยาน,other,accident_first_vehicle
+คนเดินเท้า,other,accident_first_vehicle
+รถอีแต๋น/เพื่อการเกษตร,other,accident_first_vehicle
+รถสามล้อ,other,accident_first_vehicle
+อื่นๆ,other,accident_first_vehicle
+รย. 1 รถยนต์นั่งส่วนบุคคลไม่เกิน 7 คน,passenger_car,dlt_registration
+รย. 2 รถยนต์นั่งส่วนบุคคลเกิน 7 คน,passenger_car,dlt_registration
+รย. 3 รถยนต์บรรทุกส่วนบุคคล,pickup,dlt_registration
+รย. 4 รถยนต์สามล้อส่วนบุคคล,other,dlt_registration
+รย. 5 รถยนต์รับจ้างระหว่างจังหวัด,passenger_car,dlt_registration
+รย. 6 รถยนต์รับจ้างบรรทุกคนโดยสารไม่เกิน 7 คน,passenger_car,dlt_registration
+รย. 7 รถยนต์สี่ล้อเล็กรับจ้าง (โดยสารไม่เกิน 7 คน),passenger_car,dlt_registration
+รย. 8 รถยนต์รับจ้างสามล้อ,other,dlt_registration
+รย. 9 รถยนต์บริการธุรกิจ,passenger_car,dlt_registration
+รย. 10 รถยนต์บริการทัศนาจร,heavy_truck_bus,dlt_registration
+รย. 11 รถยนต์บริการให้เช่า,passenger_car,dlt_registration
+รย. 12 รถจักรยานยนต์,motorcycle,dlt_registration
+รย. 13 รถแทร็กเตอร์,other,dlt_registration
+รย. 14 รถบดถนน,other,dlt_registration
+รย. 15 รถใช้ในงานเกษตรกรรม,other,dlt_registration
+รย. 16 รถพ่วง,heavy_truck_bus,dlt_registration
+รย. 17 รถจักรยานยนต์สาธารณะ,motorcycle,dlt_registration
+รย. 18 รถยนต์รับจ้างผ่านระบบอิเล็กทรอนิกส์,passenger_car,dlt_registration
+รถบรรทุกไม่ประจำทาง,heavy_truck_bus,dlt_registration
+รถโดยสารไม่ประจำทาง,heavy_truck_bus,dlt_registration

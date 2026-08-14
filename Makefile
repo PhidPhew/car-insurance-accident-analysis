@@ -1,4 +1,4 @@
-.PHONY: setup test lint typecheck profile clean
+.PHONY: setup test lint typecheck profile warehouse clean
 
 setup:
 	uv sync --all-groups
@@ -16,6 +16,9 @@ typecheck:
 
 profile:
 	uv run jupyter nbconvert --to notebook --execute --inplace notebooks/01_data_profiling.ipynb
+
+warehouse:
+	uv run python -m rri.warehouse.build
 
 clean:
 	rm -rf .pytest_cache .mypy_cache .ruff_cache htmlcov .coverage coverage.xml
