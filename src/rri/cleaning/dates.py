@@ -139,6 +139,11 @@ class LikelihoodResolution:
     loser_dates: tuple[date, ...]
     margin_days: float | None
     outcome: str  # "resolved" or "ambiguous"
+    #: True if stage 1 eliminated at least one candidate specifically for
+    #: violating accident_date <= report_date (as opposed to exceeding the
+    #: agency's lag ceiling) -- lets a caller report how much of the
+    #: resolving power came from the hard chronology constraint itself.
+    had_order_violation: bool
 
 
 def resolve_transposed_pairs_by_likelihood(
@@ -152,74 +157,117 @@ def resolve_transposed_pairs_by_likelihood(
     agency_median_lag_days: dict[str, float],
     agency_max_lag_days: dict[str, float],
 ) -> list[LikelihoodResolution]:
-    """Resolve each transposed-date group by comparing each candidate's lag to its agency median.
+    """Resolve each transposed-date group with a hard chronology filter, THEN likelihood.
 
-    For each of the (usually 2) distinct raw date strings in a group, every row carrying
-    that string contributes one lag (`report_date - candidate_date`, using that row's own
-    report date). A candidate is *viable* only if every one of its lags is sane
-    (`0 <= lag <= agency_max_lag_days[agency]` -- a wide sanity ceiling, not the tight
-    per-agency p99 used for Gate A). Among viable candidates, the one whose mean deviation
-    from `agency_median_lag_days[agency]` is smallest wins -- always, not just when it
-    clears some pass/fail bar, which is what lets this resolve nearly all pairs the old
-    binary test left "both valid, undecided" on. `margin_days` records
-    `deviation(loser) - deviation(winner)` as a confidence signal (larger = more decisive)
-    when there were 2 viable candidates to compare; None when there was only one.
+    Two stages, not one -- a candidate that fails the hard constraint can never win no
+    matter how close its lag looks to the agency median:
 
-    `outcome` is "ambiguous" only when NO candidate has even one sane lag to compare --
-    genuinely no evidence to decide from, not merely a close call.
+    **Stage 1 (hard filter).** A candidate is eliminated outright if it is chronologically
+    impossible against ANY report date seen anywhere in the group -- not just the report
+    date on the same row as that candidate's raw accident string. This matters because the
+    report-date field can independently be a transposition error too (CLAUDE.md P5: 33% of
+    duplicate groups also disagree on `วันที่รายงาน`), so a candidate whose own paired
+    report date happens to also be transposed can look self-consistently "valid" in
+    isolation while still being chronologically impossible against the group's other,
+    untouched report date. A candidate survives only if, for every distinct report date in
+    the group, `0 <= (report_date - candidate).days <= agency_max_lag_days[agency]` (a wide
+    sanity ceiling, not the tight per-agency p99 used for Gate A).
+
+    **Stage 2 (likelihood tie-break).** Only among candidates that survive stage 1: if
+    exactly one survives, it wins with full confidence (`outcome="resolved"`). If two
+    survive, the one whose mean deviation from `agency_median_lag_days[agency]` is smaller
+    is recorded as `winner_date` with `margin_days` as a confidence signal -- but the group
+    stays `outcome="ambiguous"`, because a likelihood tie-break among two chronologically
+    *possible* candidates is still a guess, not a logically forced answer. `outcome` is
+    also "ambiguous" when zero candidates survive stage 1 (no viable answer at all).
     """
     resolutions = []
     for key in group_keys:
         sub = df.filter(pl.col(group_key_column) == key)
-        candidate_scores: dict[date, float] = {}
-        candidate_viable: dict[date, bool] = {}
-        for raw_value in sub[accident_date_raw_column].unique().to_list():
-            rows = sub.filter(pl.col(accident_date_raw_column) == raw_value)
-            candidate = parse_slash_date(raw_value, month_first=month_first)
+        accident_raws = sub[accident_date_raw_column].to_list()
+        report_raws = sub[report_date_raw_column].to_list()
+        agencies = sub[agency_column].to_list()
+
+        parsed_reports = [
+            parse_slash_date(r, month_first=month_first) if r else None for r in report_raws
+        ]
+        group_report_dates = sorted({d for d in parsed_reports if d is not None})
+        group_agency = agencies[0]
+        ceiling = agency_max_lag_days[group_agency]
+
+        candidate_evidence: dict[date, list[tuple[date | None, str]]] = {}
+        for accident_raw, report_dt, agency in zip(
+            accident_raws, parsed_reports, agencies, strict=True
+        ):
+            candidate = parse_slash_date(accident_raw, month_first=month_first)
             if candidate is None:
                 continue
-            deviations = []
-            viable = True
-            for report_raw, agency in zip(
-                rows[report_date_raw_column].to_list(), rows[agency_column].to_list(), strict=True
-            ):
-                report_dt = (
-                    parse_slash_date(report_raw, month_first=month_first) if report_raw else None
-                )
-                if report_dt is None:
-                    viable = False
-                    break
-                lag = (report_dt - candidate).days
-                if lag < 0 or lag > agency_max_lag_days[agency]:
-                    viable = False
-                    break
-                deviations.append(abs(lag - agency_median_lag_days[agency]))
-            candidate_viable[candidate] = viable
-            if viable and deviations:
-                candidate_scores[candidate] = sum(deviations) / len(deviations)
+            candidate_evidence.setdefault(candidate, []).append((report_dt, agency))
 
-        viable_candidates = sorted(candidate_scores.items(), key=lambda item: item[1])
-        all_candidates = tuple(candidate_viable.keys())
+        all_candidates = tuple(candidate_evidence.keys())
+        order_violation = {
+            candidate: any((rd - candidate).days < 0 for rd in group_report_dates)
+            for candidate in candidate_evidence
+        }
+        hard_valid = {
+            candidate: bool(group_report_dates)
+            and all(0 <= (rd - candidate).days <= ceiling for rd in group_report_dates)
+            for candidate in candidate_evidence
+        }
+        viable = [c for c in all_candidates if hard_valid[c]]
+        had_order_violation = any(order_violation.values())
 
-        if not viable_candidates:
-            resolutions.append(
-                LikelihoodResolution(key, all_candidates, None, all_candidates, None, "ambiguous")
-            )
-        elif len(viable_candidates) == 1:
-            winner_date = viable_candidates[0][0]
-            losers = tuple(c for c in all_candidates if c != winner_date)
-            resolutions.append(
-                LikelihoodResolution(key, all_candidates, winner_date, losers, None, "resolved")
-            )
-        else:
-            winner_date, winner_dev = viable_candidates[0]
-            _, loser_dev = viable_candidates[1]
-            losers = tuple(c for c in all_candidates if c != winner_date)
+        if not viable:
             resolutions.append(
                 LikelihoodResolution(
-                    key, all_candidates, winner_date, losers, loser_dev - winner_dev, "resolved"
+                    key,
+                    all_candidates,
+                    None,
+                    all_candidates,
+                    None,
+                    "ambiguous",
+                    had_order_violation,
                 )
             )
+            continue
+
+        if len(viable) == 1:
+            winner = viable[0]
+            losers = tuple(c for c in all_candidates if c != winner)
+            resolutions.append(
+                LikelihoodResolution(
+                    key, all_candidates, winner, losers, None, "resolved", had_order_violation
+                )
+            )
+            continue
+
+        scored = []
+        for candidate in viable:
+            deviations = [
+                abs((report_dt - candidate).days - agency_median_lag_days[agency])
+                for report_dt, agency in candidate_evidence[candidate]
+                if report_dt is not None
+            ]
+            mean_deviation = sum(deviations) / len(deviations) if deviations else float("inf")
+            scored.append((candidate, mean_deviation))
+        scored.sort(key=lambda item: item[1])
+        winner, winner_dev = scored[0]
+        _, second_dev = scored[1]
+        losers = tuple(c for c in all_candidates if c != winner)
+        # Both candidates cleared the hard filter -- a real tie between two
+        # chronologically possible answers, so this stays "ambiguous" even
+        # though a likelihood-preferred winner is recorded for reference.
+        resolutions.append(
+            LikelihoodResolution(
+                key,
+                all_candidates,
+                winner,
+                losers,
+                second_dev - winner_dev,
+                "ambiguous",
+                had_order_violation,
+            )
+        )
     return resolutions
 
 

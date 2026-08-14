@@ -190,17 +190,21 @@ class TestResolveTransposedPairsByLikelihood:
         assert resolutions[0].outcome == "resolved"
         assert resolutions[0].winner_date == date(2023, 1, 2)
 
-    def test_records_margin_when_two_candidates_are_comparable(self) -> None:
+    def test_two_hard_valid_candidates_stay_ambiguous_even_with_a_likelihood_winner(self) -> None:
+        # Both candidates survive the hard chronology filter against the
+        # single shared report date -- a likelihood winner is still picked
+        # (for reference/tie-break), but the group MUST stay "ambiguous":
+        # two chronologically possible answers is a guess, not a fact.
         df = pl.DataFrame(
             {
                 "code": ["C", "C"],
-                "accident_raw": ["1/10/2023", "10/1/2023"],
-                "report_raw": ["1/20/2023", "10/11/2023"],
+                "accident_raw": ["5/1/2023", "1/5/2023"],
+                "report_raw": ["6/1/2023", "6/1/2023"],
                 "agency": ["highways", "highways"],
             }
         )
-        # candidate Jan 10 -> lag 10 (median 10, deviation 0)
-        # candidate Oct 1 -> lag 10 too (deviation 0) -- both equally close
+        # candidate May 1 -> lag 31 (median 31, deviation 0)
+        # candidate Jan 5 -> lag 147 (deviation 116) -- both non-negative, both <= 400
         resolutions = resolve_transposed_pairs_by_likelihood(
             df,
             "code",
@@ -209,12 +213,67 @@ class TestResolveTransposedPairsByLikelihood:
             "report_raw",
             "agency",
             month_first=True,
-            agency_median_lag_days={"highways": 10.0},
+            agency_median_lag_days={"highways": 31.0},
             agency_max_lag_days={"highways": 400.0},
         )
         result = resolutions[0]
+        assert result.outcome == "ambiguous"
+        assert result.winner_date == date(2023, 5, 1)
+        assert result.margin_days == 116.0
+
+    def test_hard_filter_uses_every_report_date_in_the_group_not_just_the_own_row(self) -> None:
+        # This is the bug the checkpoint review caught: candidate "Mar 1"
+        # looks self-consistently valid against ITS OWN row's report date
+        # (also transposed, "4/1" -> Apr 1, giving a plausible 31-day lag)
+        # -- but is chronologically impossible against the OTHER row's
+        # report date (Jan 4, which is before Mar 1). The hard filter must
+        # check every report date in the group, not just the paired one.
+        df = pl.DataFrame(
+            {
+                "code": ["G", "G"],
+                "accident_raw": ["1/3/2023", "3/1/2023"],
+                "report_raw": ["1/4/2023", "4/1/2023"],
+                "agency": ["rural", "rural"],
+            }
+        )
+        resolutions = resolve_transposed_pairs_by_likelihood(
+            df,
+            "code",
+            ["G"],
+            "accident_raw",
+            "report_raw",
+            "agency",
+            month_first=True,
+            agency_median_lag_days={"rural": 5.0},
+            agency_max_lag_days={"rural": 400.0},
+        )
+        result = resolutions[0]
         assert result.outcome == "resolved"
-        assert result.margin_days == 0.0
+        assert result.winner_date == date(2023, 1, 3)
+        assert result.loser_dates == (date(2023, 3, 1),)
+        assert result.had_order_violation is True
+
+    def test_had_order_violation_is_false_when_both_candidates_hard_valid(self) -> None:
+        df = pl.DataFrame(
+            {
+                "code": ["C", "C"],
+                "accident_raw": ["5/1/2023", "1/5/2023"],
+                "report_raw": ["6/1/2023", "6/1/2023"],
+                "agency": ["highways", "highways"],
+            }
+        )
+        resolutions = resolve_transposed_pairs_by_likelihood(
+            df,
+            "code",
+            ["C"],
+            "accident_raw",
+            "report_raw",
+            "agency",
+            month_first=True,
+            agency_median_lag_days={"highways": 31.0},
+            agency_max_lag_days={"highways": 400.0},
+        )
+        assert resolutions[0].had_order_violation is False
 
     def test_ambiguous_when_no_candidate_has_any_usable_report_date(self) -> None:
         df = pl.DataFrame(
@@ -240,14 +299,17 @@ class TestResolveTransposedPairsByLikelihood:
         assert resolutions[0].winner_date is None
 
     def test_three_row_group_uses_mean_deviation_across_all_rows_of_a_candidate(self) -> None:
-        # Candidate "Apr 12" has 2 rows: one with lag exactly at median (dev 0),
-        # one far off (dev 90) -> mean deviation 45. Candidate "Dec 4" has 1
-        # row with deviation 5 -> should win despite fewer rows.
+        # Candidates "Mar 4" and "Apr 3" (only 30 days apart) both survive
+        # the hard filter against all 3 group report dates. "Mar 4" has 2
+        # rows (lags 89, 119 -- mean deviation 15 from median 90); "Apr 3"
+        # has 1 row (lag 73 -- deviation 17). Mar 4 wins on a narrower
+        # margin despite having a farther-off individual row, because the
+        # score is a mean across every row sharing that candidate.
         df = pl.DataFrame(
             {
                 "code": ["E", "E", "E"],
-                "accident_raw": ["4/12/2023", "4/12/2023", "12/4/2023"],
-                "report_raw": ["4/22/2023", "7/21/2023", "12/9/2023"],
+                "accident_raw": ["3/4/2023", "3/4/2023", "4/3/2023"],
+                "report_raw": ["6/1/2023", "7/1/2023", "6/15/2023"],
                 "agency": ["highways", "highways", "highways"],
             }
         )
@@ -259,10 +321,13 @@ class TestResolveTransposedPairsByLikelihood:
             "report_raw",
             "agency",
             month_first=True,
-            agency_median_lag_days={"highways": 10.0},
+            agency_median_lag_days={"highways": 90.0},
             agency_max_lag_days={"highways": 400.0},
         )
-        assert resolutions[0].winner_date == date(2023, 12, 4)
+        result = resolutions[0]
+        assert result.outcome == "ambiguous"
+        assert result.winner_date == date(2023, 3, 4)
+        assert result.margin_days == 2.0
 
     def test_different_agencies_use_their_own_median(self) -> None:
         df = pl.DataFrame(
@@ -273,8 +338,9 @@ class TestResolveTransposedPairsByLikelihood:
                 "agency": ["rural", "rural"],
             }
         )
-        # candidate Jan 10 -> lag 5 (rural median 5, deviation 0)
-        # candidate Oct 1 -> lag 1 (deviation 4)
+        # candidate Jan 10 -> valid against both group report dates (Jan 15, Oct 2)
+        # candidate Oct 1 -> chronologically impossible against Jan 15 (report
+        # predates it) -> eliminated by the hard filter, regardless of median
         resolutions = resolve_transposed_pairs_by_likelihood(
             df,
             "code",
@@ -286,6 +352,7 @@ class TestResolveTransposedPairsByLikelihood:
             agency_median_lag_days={"rural": 5.0},
             agency_max_lag_days={"rural": 400.0},
         )
+        assert resolutions[0].outcome == "resolved"
         assert resolutions[0].winner_date == date(2023, 1, 10)
 
 
@@ -312,6 +379,7 @@ class TestApplyDateCertainty:
                 loser_dates=(date(2023, 12, 4),),
                 margin_days=None,
                 outcome="resolved",
+                had_order_violation=True,
             )
         ]
         result = apply_date_certainty(df, resolutions, "code")
@@ -334,6 +402,33 @@ class TestApplyDateCertainty:
                 loser_dates=(date(2023, 1, 10), date(2023, 10, 1)),
                 margin_days=None,
                 outcome="ambiguous",
+                had_order_violation=False,
+            )
+        ]
+        result = apply_date_certainty(df, resolutions, "code")
+        assert result["date_certainty"].to_list() == ["ambiguous", "ambiguous"]
+
+    def test_ambiguous_outcome_with_a_recorded_winner_still_marks_both_ambiguous(self) -> None:
+        # The checkpoint-review fix: even when stage 2 picked a likelihood
+        # winner for reference, outcome="ambiguous" must still mark BOTH
+        # rows ambiguous -- a recorded winner is not the same as certainty.
+        from rri.cleaning.dates import LikelihoodResolution
+
+        df = pl.DataFrame(
+            {
+                "code": ["C", "C"],
+                "accident_date": [date(2023, 5, 1), date(2023, 1, 5)],
+            }
+        )
+        resolutions = [
+            LikelihoodResolution(
+                group_key="C",
+                candidate_dates=(date(2023, 5, 1), date(2023, 1, 5)),
+                winner_date=date(2023, 5, 1),
+                loser_dates=(date(2023, 1, 5),),
+                margin_days=116.0,
+                outcome="ambiguous",
+                had_order_violation=False,
             )
         ]
         result = apply_date_certainty(df, resolutions, "code")
