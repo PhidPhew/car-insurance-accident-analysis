@@ -1,0 +1,15 @@
+step,rule,rows_before,rows_affected,description
+1_extract,coalesce_twin_columns:รถยนต์นั่งส่วนบุคคล,161307,8738,"รถยนต์นั่งส่วนบุคคล <- รถยนต์นั่งส่วนบุคคล/รถยนต์นั่งสาธารณะ: 133375 from old, 8738 from new, 19194 still null"
+1_extract,coalesce_twin_columns:รถบรรทุกไม่เกิน10ล้อ,161307,8738,"รถบรรทุกไม่เกิน10ล้อ <- รถบรรทุกมากกว่า6ล้อไม่เกิน10ล้อ: 133375 from old, 8738 from new, 19194 still null"
+1_extract,coalesce_twin_columns:รถบรรทุกมากกว่า10ล้อ,161307,8738,"รถบรรทุกมากกว่า10ล้อ <- รถบรรทุกมากกว่า10ล้อ(รถพ่วง): 133375 from old, 8738 from new, 19194 still null"
+1_extract,coalesce_twin_columns:รถอื่นๆ,161307,8738,"รถอื่นๆ <- อื่นๆ: 133375 from old, 8738 from new, 19194 still null"
+1_extract,pivot_rainfall_leads,30954,5159,30954 rows (6 leads x group) -> 5159 groups x rain_lead0..5
+1_extract,convert_buddhist_year,969,969,added year_ce = ปี พ.ศ. - 543 for every row (original column kept)
+2_taxonomy,apply_taxonomy:มูลเหตุสันนิษฐาน,161307,158627,mapped=158627 null=2680 unmapped=0 ()
+2_taxonomy,apply_taxonomy:ลักษณะการเกิดเหตุ,161307,153244,mapped=153244 null=8063 unmapped=0 ()
+2_taxonomy,apply_taxonomy:บริเวณที่เกิดเหตุ,161307,147866,mapped=147866 null=13441 unmapped=0 ()
+2_taxonomy,apply_taxonomy:บริเวณที่เกิดเหตุอื่น,161307,8462,mapped=8462 null=152845 unmapped=0 ()
+4_dedup,deduplicate_accidents,161307,1702,"1641 ACC_CODE groups collapsed, 161307 -> 159605 rows"
+5_coordinates,clean_coordinates,159605,801,"lat out-of-bounds nulled=5, lon out-of-bounds nulled=8, is_geo_valid=false for 801 rows (post-dedup counts -- CLAUDE.md's 5/10 figures are pre-dedup, on the full 161,307-row file; a handful of the affected rows were themselves collapsed away by Step 4's dedup, which is why these counts are smaller)"
+5_time_format,convert_times,159605,0,"parsed=159605, unparseable=0, literal_midnight_flagged=215"
+5_injury_breakdown_flag,add_injury_breakdown_flag,159605,19194,has_injury_breakdown=false for 19194 rows (accident2019.csv)
