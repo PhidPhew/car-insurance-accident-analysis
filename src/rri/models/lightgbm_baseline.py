@@ -132,6 +132,20 @@ def _to_pandas_features(
     return pdf
 
 
+def freq_sev_feature_matrix(df: pl.DataFrame, levels: CategoryLevels) -> pd.DataFrame:
+    """Public feature-matrix builder for the frequency/severity models (e.g. for SHAP)."""
+    return _to_pandas_features(
+        df, levels, FREQ_SEV_FEATURE_COLS, FREQ_SEV_CATEGORICAL_COLS, FREQ_SEV_BOOLEAN_COLS
+    )
+
+
+def classifier_feature_matrix(df: pl.DataFrame, levels: CategoryLevels) -> pd.DataFrame:
+    """Public feature-matrix builder for the severity classifier (e.g. for SHAP)."""
+    return _to_pandas_features(
+        df, levels, CLASSIFIER_FEATURE_COLS, CLASSIFIER_CATEGORICAL_COLS, CLASSIFIER_BOOLEAN_COLS
+    )
+
+
 @dataclass(frozen=True)
 class FittedLgbmFrequency:
     booster: lgb.Booster
@@ -143,12 +157,8 @@ def fit_lightgbm_frequency(
 ) -> FittedLgbmFrequency:
     """Fit the Poisson-objective frequency model, `log_exposure` as the init-score offset."""
     levels = levels or fit_category_levels(train, FREQ_SEV_CATEGORICAL_COLS)
-    x_train = _to_pandas_features(
-        train, levels, FREQ_SEV_FEATURE_COLS, FREQ_SEV_CATEGORICAL_COLS, FREQ_SEV_BOOLEAN_COLS
-    )
-    x_valid = _to_pandas_features(
-        valid, levels, FREQ_SEV_FEATURE_COLS, FREQ_SEV_CATEGORICAL_COLS, FREQ_SEV_BOOLEAN_COLS
-    )
+    x_train = freq_sev_feature_matrix(train, levels)
+    x_valid = freq_sev_feature_matrix(valid, levels)
     dtrain = lgb.Dataset(
         x_train,
         label=train["accident_count"].to_numpy(),
@@ -176,9 +186,7 @@ def fit_lightgbm_frequency(
 
 def predict_lightgbm_frequency(fitted: FittedLgbmFrequency, df: pl.DataFrame) -> np.ndarray:
     """Predict frequency, manually re-adding the `log_exposure` offset (see module docstring)."""
-    x = _to_pandas_features(
-        df, fitted.levels, FREQ_SEV_FEATURE_COLS, FREQ_SEV_CATEGORICAL_COLS, FREQ_SEV_BOOLEAN_COLS
-    )
+    x = freq_sev_feature_matrix(df, fitted.levels)
     raw_score = fitted.booster.predict(
         x, raw_score=True, num_iteration=fitted.booster.best_iteration
     )
@@ -197,12 +205,8 @@ def fit_lightgbm_severity(
 ) -> FittedLgbmSeverity:
     """Fit the Gamma-objective severity model (no offset -- not exposure-normalized)."""
     levels = levels or fit_category_levels(train, FREQ_SEV_CATEGORICAL_COLS)
-    x_train = _to_pandas_features(
-        train, levels, FREQ_SEV_FEATURE_COLS, FREQ_SEV_CATEGORICAL_COLS, FREQ_SEV_BOOLEAN_COLS
-    )
-    x_valid = _to_pandas_features(
-        valid, levels, FREQ_SEV_FEATURE_COLS, FREQ_SEV_CATEGORICAL_COLS, FREQ_SEV_BOOLEAN_COLS
-    )
+    x_train = freq_sev_feature_matrix(train, levels)
+    x_valid = freq_sev_feature_matrix(valid, levels)
     model = lgb.LGBMRegressor(
         objective="gamma", n_estimators=_MAX_BOOST_ROUNDS, **_LGBM_PARAMS_BASE
     )
@@ -218,9 +222,7 @@ def fit_lightgbm_severity(
 
 
 def predict_lightgbm_severity(fitted: FittedLgbmSeverity, df: pl.DataFrame) -> np.ndarray:
-    x = _to_pandas_features(
-        df, fitted.levels, FREQ_SEV_FEATURE_COLS, FREQ_SEV_CATEGORICAL_COLS, FREQ_SEV_BOOLEAN_COLS
-    )
+    x = freq_sev_feature_matrix(df, fitted.levels)
     return np.asarray(fitted.model.predict(x))
 
 
@@ -235,12 +237,8 @@ def fit_lightgbm_severity_classifier(
 ) -> FittedLgbmClassifier:
     """Fit the multiclass severity classifier on the record-level frame."""
     levels = levels or fit_category_levels(train, CLASSIFIER_CATEGORICAL_COLS)
-    x_train = _to_pandas_features(
-        train, levels, CLASSIFIER_FEATURE_COLS, CLASSIFIER_CATEGORICAL_COLS, CLASSIFIER_BOOLEAN_COLS
-    )
-    x_valid = _to_pandas_features(
-        valid, levels, CLASSIFIER_FEATURE_COLS, CLASSIFIER_CATEGORICAL_COLS, CLASSIFIER_BOOLEAN_COLS
-    )
+    x_train = classifier_feature_matrix(train, levels)
+    x_valid = classifier_feature_matrix(valid, levels)
     model = lgb.LGBMClassifier(
         objective="multiclass", n_estimators=_MAX_BOOST_ROUNDS, **_LGBM_PARAMS_BASE
     )
@@ -258,11 +256,5 @@ def fit_lightgbm_severity_classifier(
 def predict_lightgbm_severity_classifier(
     fitted: FittedLgbmClassifier, df: pl.DataFrame
 ) -> np.ndarray:
-    x = _to_pandas_features(
-        df,
-        fitted.levels,
-        CLASSIFIER_FEATURE_COLS,
-        CLASSIFIER_CATEGORICAL_COLS,
-        CLASSIFIER_BOOLEAN_COLS,
-    )
+    x = classifier_feature_matrix(df, fitted.levels)
     return np.asarray(fitted.model.predict(x))
