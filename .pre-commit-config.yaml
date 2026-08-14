@@ -22,6 +22,7 @@ repos:
           - pytest
           - holidays
           - polars
+          - types-PyMySQL
         pass_filenames: false
         args: []
 

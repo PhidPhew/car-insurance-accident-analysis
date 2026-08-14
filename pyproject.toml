@@ -10,6 +10,7 @@ authors = [{ name = "SiamShield Insurance Analytics Team" }]
 dependencies = [
     "polars>=1.9",
     "pandas>=2.2",
+    "numpy>=1.26",
     "pyarrow>=17.0",
     "duckdb>=1.1",
     "pandera>=0.20",
@@ -19,6 +20,7 @@ dependencies = [
     "python-dateutil>=2.9",
     "requests>=2.32",
     "holidays>=0.102",
+    "pymysql>=1.1",
 ]
 
 [dependency-groups]
@@ -32,6 +34,7 @@ dev = [
     "ipykernel>=6.29",
     "pandas-stubs>=2.2",
     "types-requests>=2.32",
+    "types-pymysql>=1.1",
     "matplotlib>=3.11.1",
 ]
 

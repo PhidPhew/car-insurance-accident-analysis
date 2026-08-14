@@ -2574,6 +2574,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pymysql"
+version = "1.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/c9/bc/1c6a92f385940f727daeecf3bacaf186e03875dff57197801046c583bcf0/pymysql-1.2.0.tar.gz", hash = "sha256:6c7b17ca686988104d7426c27895b455cdeea3e9d3ceb1270f0c3704fead8c33", size = 49021, upload-time = "2026-05-19T08:26:22.302Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c4/bd/2534e130295c8cfd4f0a2e31623baab7502278f1e97bcfe61db75656a77f/pymysql-1.2.0-py3-none-any.whl", hash = "sha256:62169ce6d5510f08e140c5e7990ee884a9764024e4a9a27b2cc11f1099322ae0", size = 45716, upload-time = "2026-05-19T08:26:20.974Z" },
+]
+
+[[package]]
 name = "pyparsing"
 version = "3.3.2"
 source = { registry = "https://pypi.org/simple" }
@@ -2992,11 +3001,14 @@ source = { editable = "." }
 dependencies = [
     { name = "duckdb" },
     { name = "holidays" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "numpy", version = "2.5.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "pandas" },
     { name = "pandera" },
     { name = "polars" },
     { name = "pyarrow" },
     { name = "pydantic-settings" },
+    { name = "pymysql" },
     { name = "python-dateutil" },
     { name = "requests" },
     { name = "structlog" },
@@ -3014,6 +3026,7 @@ dev = [
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
+    { name = "types-pymysql" },
     { name = "types-requests" },
 ]
 
@@ -3021,11 +3034,13 @@ dev = [
 requires-dist = [
     { name = "duckdb", specifier = ">=1.1" },
     { name = "holidays", specifier = ">=0.102" },
+    { name = "numpy", specifier = ">=1.26" },
     { name = "pandas", specifier = ">=2.2" },
     { name = "pandera", specifier = ">=0.20" },
     { name = "polars", specifier = ">=1.9" },
     { name = "pyarrow", specifier = ">=17.0" },
     { name = "pydantic-settings", specifier = ">=2.5" },
+    { name = "pymysql", specifier = ">=1.1" },
     { name = "python-dateutil", specifier = ">=2.9" },
     { name = "requests", specifier = ">=2.32" },
     { name = "structlog", specifier = ">=24.4" },
@@ -3043,6 +3058,7 @@ dev = [
     { name = "pytest", specifier = ">=8.3" },
     { name = "pytest-cov", specifier = ">=5.0" },
     { name = "ruff", specifier = "==0.16.2" },
+    { name = "types-pymysql", specifier = ">=1.1" },
     { name = "types-requests", specifier = ">=2.32" },
 ]
 
@@ -3261,6 +3277,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ae/40/4a3db7990d1f62a53182aa96eaef57aeb2886a27f90a195bc66713565d31/typer-0.27.1.tar.gz", hash = "sha256:a79bef8469a79c45498e7b814ecf8d603cc7644e9acbd9e19cac0334240b18df", size = 203994, upload-time = "2026-08-03T14:41:03.438Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/43/89/9518bc0c3929bee36b3a4a8e3daddd6e03f92f9961c66d4983b837160543/typer-0.27.1-py3-none-any.whl", hash = "sha256:53150287edd11baeb4e4722c8e394fcdf8181c0ae89485cba8d25c778d5edd56", size = 122874, upload-time = "2026-08-03T14:41:04.391Z" },
+]
+
+[[package]]
+name = "types-pymysql"
+version = "1.2.0.20260807"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/cf/71/f2d9cf554a59396c9dcf7cd902d1c187b6d4762dc7650e25a02c4ca2cf9c/types_pymysql-1.2.0.20260807.tar.gz", hash = "sha256:7fd4a7767925dbb0fd3e73fd488184fcd98b7612f8066cda280453b17864264f", size = 22768, upload-time = "2026-08-07T04:17:29.272Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/79/83/37e485e7ad3404aa018b6740d759b74665669c61c9c154f81d890b2ccd3a/types_pymysql-1.2.0.20260807-py3-none-any.whl", hash = "sha256:2a722284451649e1c2564655cba4963c0661851d04cc10195b7c002fab8e55f6", size = 23327, upload-time = "2026-08-07T04:17:28.318Z" },
 ]
 
 [[package]]
