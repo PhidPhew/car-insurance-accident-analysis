@@ -266,25 +266,18 @@ Requires `docs/simulation_assumptions.md`, attached to the report.
 - ⚠️ `total_injury_count` is derived — never sum it alongside its two components
 - ⚠️ `LATITUDE`/`LONGITUDE` are non-additive — never sum or naively average
 
-**DQ Gates (referenced throughout §6/§9) — two different checkpoints, not interchangeable:**
-- **Gate A** — row-level validity at ingest (e.g. safety net #2's per-agency report-lag threshold, §6).
-- **Gate B** — completeness/referential checks after transform/load (e.g. the 83-row unparsed-row
-  reconciliation in P1/§6). **New Gate B rule: `severity_index_fine` must never be computed for a row
-  where `has_injury_breakdown` is false** — enforced as a pipeline check, not a filter buried in a
-  downstream query.
-
-**Reconciliation — two separate gates (owner-requested framing, see P5). Both must be checked; they
-catch different classes of error, so collapsing them to one number loses a check:**
-
-- **Gate 1 — post-Extract (full file, 2019–2026, pre-dedup):** 161,307 accidents · 21,814 fatalities ·
-  134,313 total injuries · 248,825 vehicles involved. Proves nothing was lost reading the raw files in.
-- **Gate 2 — post-Load (post-dedup, 1 row per `ACC_CODE` group):** 159,605 accidents (1,702 fewer) ·
-  21,497 fatalities (317 fewer, exact — casualty counts agree 100% within every duplicate group, so
-  this number does not depend on which row of a group is kept). Injury/vehicle totals post-dedup not
-  yet computed. Proves dedup removed exactly the intended rows, no more and no less.
-
-Neither gate "is the real target" to the exclusion of the other — Extract and Load are different
-pipeline stages with different failure modes to catch. Do not silently collapse to one number.
+**Two gate systems, don't conflate the names:**
+- **DQ Gates A/B** — *when* a check runs. Gate A = row-level validity at ingest (e.g. safety net #2's
+  per-agency report-lag threshold, §6). Gate B = completeness/referential checks after transform/load
+  (e.g. the 83-row unparsed-row reconciliation, §6). **Gate B rule: `severity_index_fine` must never be
+  computed for a row where `has_injury_breakdown` is false** — a pipeline check, not a query-time filter.
+- **Reconciliation Gates 1/2** — *row-count totals* at two pipeline stages, never collapsed to one
+  number (different failure modes: ingest loss vs. over/under-aggressive dedup):
+  - **Gate 1** (post-Extract, pre-dedup, full 2019–2026 file): 161,307 accidents · 21,814 fatalities ·
+    134,313 total injuries · 248,825 vehicles involved.
+  - **Gate 2** (post-Load, post-dedup, 1 row per `ACC_CODE` group): 159,605 accidents (1,702 fewer) ·
+    21,497 fatalities (317 fewer, exact — casualty counts agree 100% within every duplicate group).
+    Injury/vehicle totals post-dedup not yet computed.
 
 ### `fact_underwriting_monthly`
 - **Grain:** *one month × one province × one vehicle group × one cover class* (~92,400 rows)
