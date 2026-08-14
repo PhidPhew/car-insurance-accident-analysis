@@ -253,9 +253,10 @@ Requires `docs/simulation_assumptions.md`, attached to the report.
 - **Grain:** *one road accident, on one date and time, in one province, on one road section, with a
   first vehicle of one type, under one cause and one reported weather condition*
 - Type: transaction fact
-- PK `accident_sk` · degenerate dims: `acc_code`, `road_code`, `km_marker`
+- PK `accident_sk` · degenerate dims: `acc_code`, `road_code`, `km_marker`, `agency`
+  (only 3 values — a degenerate attribute, not a 9th dimension; see P7.13 for why it exists)
 - FKs: `date_sk`, `time_of_day_sk`, `geography_sk`, `vehicle_sk`, `accident_context_sk`,
-  `weather_band_sk`, `agency_sk`
+  `weather_band_sk`
 - Additive measures: `accident_count` (=1), `fatality_count`, `serious_injury_count`,
   `minor_injury_count`, `total_injury_count`, `vehicle_involved_count`, `pedestrian_count`,
   `reporting_lag_days`
