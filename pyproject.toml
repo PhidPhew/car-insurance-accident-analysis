@@ -69,7 +69,16 @@ explicit_package_bases = true
 files = ["src/rri", "config", "tests", "scripts"]
 
 [[tool.mypy.overrides]]
-module = ["pandera.*", "duckdb.*", "holidays.*", "statsmodels.*", "patsy.*", "shap.*", "lightgbm.*"]
+module = [
+    "pandera.*",
+    "duckdb.*",
+    "holidays.*",
+    "statsmodels.*",
+    "patsy.*",
+    "shap.*",
+    "lightgbm.*",
+    "matplotlib.*",
+]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
