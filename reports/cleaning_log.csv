@@ -9,7 +9,7 @@ step,rule,rows_before,rows_affected,description
 2_taxonomy,apply_taxonomy:ลักษณะการเกิดเหตุ,161307,153244,mapped=153244 null=8063 unmapped=0 ()
 2_taxonomy,apply_taxonomy:บริเวณที่เกิดเหตุ,161307,147866,mapped=147866 null=13441 unmapped=0 ()
 2_taxonomy,apply_taxonomy:บริเวณที่เกิดเหตุอื่น,161307,8462,mapped=8462 null=152845 unmapped=0 ()
-4_dedup,deduplicate_accidents,161307,1702,"1641 ACC_CODE groups collapsed, 161307 -> 159605 rows"
+4_dedup,deduplicate_accidents,161307,1702,"1641 ACC_CODE groups collapsed to 1 row each (1702 excess rows removed), 161307 -> 159605 rows"
 5_coordinates,clean_coordinates,159605,801,"lat out-of-bounds nulled=5, lon out-of-bounds nulled=8, is_geo_valid=false for 801 rows (post-dedup counts -- CLAUDE.md's 5/10 figures are pre-dedup, on the full 161,307-row file; a handful of the affected rows were themselves collapsed away by Step 4's dedup, which is why these counts are smaller)"
 5_time_format,convert_times,159605,0,"parsed=159605, unparseable=0, literal_midnight_flagged=215"
 5_injury_breakdown_flag,add_injury_breakdown_flag,159605,19194,has_injury_breakdown=false for 19194 rows (accident2019.csv)
