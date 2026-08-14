@@ -18,6 +18,8 @@ source doesn't have.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import polars as pl
 
 from config.settings import settings
@@ -58,6 +60,6 @@ def build_dim_vehicle() -> pl.DataFrame:
     )
 
 
-def vehicle_group_mapping_path() -> str:
+def vehicle_group_mapping_path() -> Path:
     """Path to the committed accident-side + DLT-side raw-value -> group CSV."""
-    return str(settings.mappings_dir / "vehicle_groups.csv")
+    return settings.mappings_dir / "vehicle_groups.csv"

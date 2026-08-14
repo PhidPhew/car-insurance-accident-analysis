@@ -28,7 +28,7 @@ CONTEXT_COLUMNS = (
     "บริเวณที่เกิดเหตุอื่น_group",
 )
 
-_RENAMED_COLUMNS = {
+CONTEXT_COLUMN_RENAME = {
     "มูลเหตุสันนิษฐาน_group": "cause_group",
     "ลักษณะการเกิดเหตุ_group": "crash_type_group",
     "บริเวณที่เกิดเหตุ_group": "road_geometry_group",
@@ -42,8 +42,8 @@ def build_dim_accident_context(accidents_df: pl.DataFrame) -> pl.DataFrame:
         accidents_df.select(list(CONTEXT_COLUMNS))
         .with_columns([pl.col(c).fill_null("Unknown") for c in CONTEXT_COLUMNS])
         .unique()
-        .rename(_RENAMED_COLUMNS)
-        .sort(list(_RENAMED_COLUMNS.values()))
+        .rename(CONTEXT_COLUMN_RENAME)
+        .sort(list(CONTEXT_COLUMN_RENAME.values()))
     )
 
     combos = assign_surrogate_keys(combos, "accident_context_sk")

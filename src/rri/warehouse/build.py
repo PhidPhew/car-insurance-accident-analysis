@@ -19,9 +19,10 @@ from rri.warehouse.dim_date import build_dim_date
 from rri.warehouse.dim_geography import build_dim_geography
 from rri.warehouse.dim_policy_type import build_dim_policy_type
 from rri.warehouse.dim_time_of_day import build_dim_time_of_day
-from rri.warehouse.dim_vehicle import build_dim_vehicle
+from rri.warehouse.dim_vehicle import build_dim_vehicle, vehicle_group_mapping_path
 from rri.warehouse.dim_weather_band import build_dim_weather_band
 from rri.warehouse.duckdb_io import get_connection, write_table
+from rri.warehouse.fact_accident import build_fact_accident
 
 log = get_logger(__name__)
 
@@ -52,23 +53,39 @@ def build_dimensions(staging: dict[str, pl.DataFrame]) -> dict[str, pl.DataFrame
     }
 
 
-def run_dimension_build() -> None:
-    """Phase 3 Step 1: build and write all 8 dimensions to `warehouse.duckdb`."""
+def run_warehouse_build() -> None:
+    """Phase 3: build all 8 dimensions (Step 1) then `fact_accident` (Step 2)."""
     configure_logging()
     settings.ensure_writable_dirs()
 
     staging = load_staging_frames()
     dims = build_dimensions(staging)
 
+    fact_accident = build_fact_accident(
+        staging["accidents"],
+        dims["dim_date"],
+        dims["dim_geography"],
+        dims["dim_vehicle"],
+        dims["dim_accident_context"],
+        dims["dim_time_of_day"],
+        dims["dim_weather_band"],
+        vehicle_group_mapping_path(),
+    )
+
     con = get_connection()
     try:
         for table_name, df in dims.items():
             write_table(con, table_name, df)
+        write_table(con, "fact_accident", fact_accident)
     finally:
         con.close()
 
-    log.info("dimension_build_complete", tables=list(dims.keys()))
+    log.info(
+        "warehouse_build_complete",
+        tables=[*dims.keys(), "fact_accident"],
+        fact_accident_rows=fact_accident.height,
+    )
 
 
 if __name__ == "__main__":
-    run_dimension_build()
+    run_warehouse_build()
