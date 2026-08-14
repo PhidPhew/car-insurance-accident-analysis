@@ -1,4 +1,4 @@
-.PHONY: setup test lint typecheck profile warehouse export load-mysql clean
+.PHONY: setup test lint typecheck profile warehouse export load-mysql er-diagram clean
 
 setup:
 	uv sync --all-groups
@@ -25,6 +25,9 @@ export:
 
 load-mysql:
 	uv run python scripts/load_to_mysql.py
+
+er-diagram:
+	uv run python scripts/generate_er_diagram.py
 
 clean:
 	rm -rf .pytest_cache .mypy_cache .ruff_cache htmlcov .coverage coverage.xml
