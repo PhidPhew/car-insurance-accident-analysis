@@ -24,7 +24,7 @@ one-line sourcing note in `config/simulation_params.py` stating the range it sit
 | Component | Status |
 |---|---|
 | Accidents / severity / location / time | 🟢 100% real — `fact_accident`, built in Phase 3 |
-| Claim counts | 🟢 derived deterministically from real accident counts × `CLAIM_FREQUENCY` |
+| Claim counts | 🟡 `policies_in_force × CLAIM_FREQUENCY` (policies sized from real exposure data) |
 | Claim cost per case | 🟡 real severity (fatality/injury counts) × `MEAN_CLAIM_SEVERITY_THB` |
 | Policy counts / premium / cover class / customer mix | 🔴 simulated, calibrated to `COVER_CLASS_MIX` |
 
@@ -79,25 +79,49 @@ vehicle-group-specific — stated as a limitation, same as claim frequency above
 
 ## `fact_underwriting_monthly` grain and derivation
 
-Grain: **one month × one province × one vehicle group × one cover class**
-(~92,400 rows: ~86 months × 77 provinces × 5 vehicle groups × 4 cover classes, plus
-Unknown Member rows).
+Grain: **one month × one province × one vehicle group × one cover class**, real dimension
+rows only (77 provinces × 5 vehicle groups × 4 cover classes = 1,540 combos/month).
 
-1. **Claim counts** — aggregate real `fact_accident` rows to this grain (month × province
-   × vehicle group), then `claim_count = accident_count × CLAIM_FREQUENCY`, split across
-   the 4 cover classes by `COVER_CLASS_MIX`. Deterministic given the real accident count —
-   no independent randomness.
-2. **Claim cost** — `incurred_claim_amount = claim_count × MEAN_CLAIM_SEVERITY_THB`,
-   scaled by each row's own `severity_index_coarse` relative to the portfolio average, so
-   a province/month with a real elevated severity index shows elevated claim cost, not a
-   flat rate. This is where real severity flows into the simulated book.
-3. **Policy counts, premium, customer mix** — simulated from `COVER_CLASS_MIX` and
-   published OIC market-share constants, seeded with `RANDOM_SEED = 42` (CLAUDE.md N9) so
-   re-running the build produces byte-identical output.
-4. **Exposure** — `exposure_vehicle_months` uses the Phase 1 back-cast (CLAUDE.md §7.1):
+**Window: 2022-01 through 2025-12 (48 months, 73,920 rows)** — not CLAUDE.md §8's own
+"~92,400 rows" estimate (which assumes 60 months). Deliberate: the exposure back-cast
+below needs `car_registered_new`'s national growth curve, which only has data from
+2022-01 onward. Stretching it back to 2019 to hit the estimated row count would mean
+fabricating growth-rate data the source doesn't have, so this build uses the 48 months
+the source actually supports instead.
+
+1. **Exposure** — `exposure_vehicle_months` uses the Phase 1 back-cast (CLAUDE.md §7.1):
    per-province vehicle counts scaled by the national monthly registration growth curve
-   from `car_registered_new_2565_2569_combined.csv`.
+   from `car_registered_new_2565_2569_combined.csv`. Real for the 3 vehicle groups
+   `stt_car_fuel` registers (motorcycle/passenger_car/pickup); **null** for
+   `heavy_truck_bus`/`other` (§7.2 — no registration source covers them). Informational
+   context only — see the next point for why it is *not* the basis for policy counts.
+2. **Policy counts, premium** — simulated. `policies_in_force` is sized off
+   `exposure_vehicle_count` (the 3 normalized groups) or a documented accident-based proxy
+   (the 2 that aren't), times `SIAMSHIELD_MARKET_SHARE` (fictional — SiamShield has no real
+   market share to source) × `COVER_CLASS_MIX`, seeded with `RANDOM_SEED = 42` (CLAUDE.md
+   N9) so re-running the build produces byte-identical output.
+3. **Claim counts** — **revised from this doc's original design** (kept here for the
+   record; see `rri.warehouse.fact_underwriting_monthly`'s module docstring for the full
+   account): originally `claim_count = accident_count × CLAIM_FREQUENCY` directly off the
+   real per-cell accident count. That produced a loss ratio ~0.07% — three orders of
+   magnitude under the Step 6 sanity band — because a single month's accident count in one
+   (province, vehicle_group) cell is far too sparse, and is completely decoupled in scale
+   from the exposure-driven policy count (real registered-fleet counts run into the
+   millions for a large province). Corrected to the standard actuarial relationship
+   instead: `claim_count = policies_in_force × (CLAIM_FREQUENCY / 12)`, solving frequency
+   = claims/exposure for claims. Deterministic given the (real-data-derived)
+   `policies_in_force` — still no independent weather/claim link.
+4. **Claim cost** — `incurred_claim_amount = claim_count × MEAN_CLAIM_SEVERITY_THB`,
+   scaled by a `relative_severity_multiplier` built from each cell's own real
+   fatality/serious/minor injury counts (the fine-tier `SEVERITY_WEIGHT_*` weights,
+   CLAUDE.md §9) relative to the window-wide accident-weighted average — a province/month
+   with a real elevated severity mix shows elevated claim cost, not a flat rate. This is
+   where real severity flows into the simulated book. (This window is fully post-2019, so
+   every cell has `has_injury_breakdown = true` — no need for `severity_index_coarse`'s
+   `W_f`/`W_i`, which CLAUDE.md §9 defers to Phase 5.)
+5. **`paid_claim_amount`** — `incurred_claim_amount × PAID_TO_INCURRED_RATIO`.
 
 `loss_ratio`, `frequency`, `severity`, `pure_premium` are **never stored** — CLAUDE.md §8:
 storing a ratio in a fact table breaks roll-up arithmetic. They're computed at query time
-from the stored numerator/denominator measures.
+from the stored numerator/denominator measures. Overall loss ratio at these constants:
+**~65.3%**, inside the 55-75% Step 6 sanity band.

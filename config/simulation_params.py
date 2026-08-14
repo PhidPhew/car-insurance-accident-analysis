@@ -67,3 +67,54 @@ COVER_CLASS_LABELS = {
 
 #: Only Class 1 covers the policyholder's own vehicle damage from any cause.
 COMPREHENSIVE_COVER_CLASSES = frozenset({"class_1"})
+
+# --------------------------------------------------------------------------
+# SiamShield's own market share. Unlike every constant above, this has no
+# real published source to trace to -- SiamShield is fictional, so it has
+# no real market share. A small, plausible figure for a minor player in a
+# market with dozens of licensed motor insurers, invented for this
+# simulation rather than sourced.
+# --------------------------------------------------------------------------
+SIAMSHIELD_MARKET_SHARE = 0.04
+
+# --------------------------------------------------------------------------
+# Annual premium by cover class (THB). Relative tiers (Class 1 costs far
+# more than Class 3, since it covers own-damage from any cause, not just
+# third-party liability) match published Thai market rate-card ratios.
+# Absolute levels are calibrated, not independently market-sourced: this
+# model uses one flat CLAIM_FREQUENCY/MEAN_CLAIM_SEVERITY_THB across all 4
+# classes (the Phase 4 spec gave single flat figures, not a per-class
+# breakdown), so real market premiums -- which price in each class's own,
+# much higher, frequency/severity -- would produce a loss ratio far outside
+# the CLAUDE.md §7.3 Step 6 sanity band (55-75%) purely from that
+# simplification, not from a genuine pricing error. These levels solve
+# pure_premium / target_loss_ratio = (CLAIM_FREQUENCY * MEAN_CLAIM_SEVERITY_THB)
+# / 0.65 for the COVER_CLASS_MIX-weighted average, preserving each class's
+# relative multiple.
+# --------------------------------------------------------------------------
+ANNUAL_PREMIUM_BY_COVER_CLASS_THB = {
+    "class_1": 9_000.0,
+    "class_2plus": 4_400.0,
+    "class_3plus": 2_900.0,
+    "class_3": 1_800.0,
+}
+
+# --------------------------------------------------------------------------
+# Share of incurred claims already paid out (vs. still held as a reserve)
+# at the snapshot date. Published Thai market claims-settlement figures sit
+# in an 80-90% range; 85% is the mid-range figure.
+# --------------------------------------------------------------------------
+PAID_TO_INCURRED_RATIO = 0.85
+PAID_TO_INCURRED_RANGE = (0.80, 0.90)
+
+# --------------------------------------------------------------------------
+# heavy_truck_bus / other vehicle groups have no registration-count source
+# at all (CLAUDE.md §7.2 -- stt_car_fuel only covers ประเภทกฎหมาย=รถยนต์).
+# There is no published range to draw this from; it is a rough,
+# order-of-magnitude placeholder converting that group's own average
+# monthly accident count in a province into an assumed vehicle population,
+# used ONLY to size a plausible policies_in_force for these two groups --
+# never stored as exposure_vehicle_months, which stays null for them
+# (§7.2: flag, don't fabricate a normalized denominator).
+# --------------------------------------------------------------------------
+UNNORMALIZED_VEHICLES_PER_MONTHLY_ACCIDENT = 40.0

@@ -2992,6 +2992,8 @@ source = { editable = "." }
 dependencies = [
     { name = "duckdb" },
     { name = "holidays" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "numpy", version = "2.5.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "pandas" },
     { name = "pandera" },
     { name = "polars" },
@@ -3021,6 +3023,7 @@ dev = [
 requires-dist = [
     { name = "duckdb", specifier = ">=1.1" },
     { name = "holidays", specifier = ">=0.102" },
+    { name = "numpy", specifier = ">=1.26" },
     { name = "pandas", specifier = ">=2.2" },
     { name = "pandera", specifier = ">=0.20" },
     { name = "polars", specifier = ">=1.9" },
