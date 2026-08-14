@@ -81,6 +81,21 @@ from rri.warehouse.keys import UNKNOWN_SK
 WINDOW_START = (2022, 1)
 WINDOW_END = (2025, 12)
 
+#: Additivity contract for this fact's measures (CLAUDE.md §8) -- any query or
+#: dashboard aggregating this table must consult this before choosing SUM.
+#: `policies_in_force` is semi-additive: summing it across provinces/vehicle
+#: groups/cover classes *within one month* is valid (a snapshot count at that
+#: point in time), but summing it *across months* double-counts the same
+#: policies and is meaningless -- use AVG or a specific month's value instead.
+MEASURE_ADDITIVITY = {
+    "policies_in_force": "semi-additive (never sum across months)",
+    "exposure_vehicle_months": "additive",
+    "earned_premium": "additive",
+    "claim_count": "additive",
+    "incurred_claim_amount": "additive",
+    "paid_claim_amount": "additive",
+}
+
 
 def _window_months(
     start: tuple[int, int] = WINDOW_START, end: tuple[int, int] = WINDOW_END

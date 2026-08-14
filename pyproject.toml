@@ -20,6 +20,7 @@ dependencies = [
     "python-dateutil>=2.9",
     "requests>=2.32",
     "holidays>=0.102",
+    "pymysql>=1.1",
 ]
 
 [dependency-groups]
@@ -33,6 +34,7 @@ dev = [
     "ipykernel>=6.29",
     "pandas-stubs>=2.2",
     "types-requests>=2.32",
+    "types-pymysql>=1.1",
     "matplotlib>=3.11.1",
 ]
 

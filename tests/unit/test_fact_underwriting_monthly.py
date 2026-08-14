@@ -18,6 +18,7 @@ from rri.warehouse.dim_vehicle import build_dim_vehicle
 from rri.warehouse.dim_weather_band import build_dim_weather_band
 from rri.warehouse.fact_accident import build_fact_accident
 from rri.warehouse.fact_underwriting_monthly import (
+    MEASURE_ADDITIVITY,
     WINDOW_END,
     WINDOW_START,
     _window_months,
@@ -227,3 +228,31 @@ class TestBuildFactUnderwritingMonthly:
     def test_underwriting_sk_unique(self, built: BuiltFixture) -> None:
         fact_uw, *_ = built
         assert fact_uw["underwriting_sk"].n_unique() == fact_uw.height
+
+
+class TestSemiAdditivity:
+    def test_policies_in_force_flagged_semi_additive(self) -> None:
+        assert MEASURE_ADDITIVITY["policies_in_force"].startswith("semi-additive")
+
+    def test_every_other_measure_flagged_additive(self) -> None:
+        for measure, additivity in MEASURE_ADDITIVITY.items():
+            if measure != "policies_in_force":
+                assert additivity == "additive", measure
+
+    def test_summing_across_months_double_counts_policies(self, built: BuiltFixture) -> None:
+        # Demonstrates *why* policies_in_force is semi-additive: the same
+        # cell's policy count repeats every month (it's a snapshot, not a
+        # monthly flow), so summing across months inflates the figure --
+        # the correct query-time aggregation is AVG or a specific month.
+        fact_uw, *_ = built
+        one_cell = fact_uw.filter(
+            (pl.col("geography_sk") == fact_uw["geography_sk"][0])
+            & (pl.col("vehicle_sk") == fact_uw["vehicle_sk"][0])
+            & (pl.col("policy_type_sk") == fact_uw["policy_type_sk"][0])
+        )
+        assert one_cell.height > 1  # spans multiple months
+        summed_across_months = one_cell["policies_in_force"].sum()
+        any_single_month = one_cell["policies_in_force"][0]
+        # A correct point-in-time reading is one month's value; summing
+        # inflates it by roughly the number of months in the cell.
+        assert summed_across_months >= any_single_month * (one_cell.height - 1)

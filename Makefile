@@ -1,4 +1,4 @@
-.PHONY: setup test lint typecheck profile warehouse clean
+.PHONY: setup test lint typecheck profile warehouse export load-mysql clean
 
 setup:
 	uv sync --all-groups
@@ -19,6 +19,12 @@ profile:
 
 warehouse:
 	uv run python -m rri.warehouse.build
+
+export:
+	uv run python -m rri.warehouse.export
+
+load-mysql:
+	uv run python scripts/load_to_mysql.py
 
 clean:
 	rm -rf .pytest_cache .mypy_cache .ruff_cache htmlcov .coverage coverage.xml
