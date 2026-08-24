@@ -725,3 +725,71 @@ def portfolio_segment_matrix(f: Filters) -> pd.DataFrame:
     # loss ratio" -- null it out here rather than let it read as risk-free.
     merged.loc[merged["claim_count"].fillna(0) == 0, "loss_ratio"] = pd.NA
     return merged
+
+
+@st.cache_data(show_spinner=False)
+def forecast_series(f: Filters) -> pd.DataFrame:
+    """Full monthly accident history (ignores the filter's own date range --
+    uses the warehouse's full availability so the forecast always starts from
+    the latest real data) for the province/vehicle/agency scope, plus a
+    6-month seasonal-naive forecast appended.
+
+    CLAUDE.md Phase 7 rule: the GRU (Phase 6) did not beat seasonal-naive on
+    this data (Poisson deviance 14.64 vs. 7.40) -- this page uses the
+    validated-better seasonal-naive method (`rri.models.gru_forecast.
+    seasonal_naive_forecast`'s own definition: forecast month m with the
+    actual count from m-12), not a live GRU inference pipeline. Uncertainty
+    bands come from the scope's own historical year-over-year variability,
+    not a fitted model confidence interval -- labeled as such on the page.
+    """
+    con = get_connection()
+    min_date, max_date = accident_date_bounds()
+    history = con.execute(
+        """
+        SELECT
+            date_trunc('month', d.date) AS month,
+            SUM(f.accident_count)::DOUBLE AS accident_count
+        FROM fact_accident f
+        JOIN dim_date d ON f.date_sk = d.date_sk
+        WHERE d.date BETWEEN ? AND ?
+          AND f.geography_sk = ANY(?)
+          AND f.vehicle_sk = ANY(?)
+          AND f.agency = ANY(?)
+        GROUP BY 1
+        ORDER BY 1
+        """,
+        [min_date, max_date, list(f.geography_sks), list(f.vehicle_sks), list(f.agencies)],
+    ).fetchdf()
+    if history.empty:
+        return history.assign(
+            kind="history", lower=pd.Series(dtype=float), upper=pd.Series(dtype=float)
+        )
+
+    history["month"] = pd.to_datetime(history["month"])
+    series = history.set_index("month")["accident_count"]
+    history["kind"] = "history"
+    history["lower"] = pd.NA
+    history["upper"] = pd.NA
+
+    # Year-over-year %% change distribution for this scope, used only to size an
+    # honest uncertainty band around the point forecast (not a model CI).
+    yoy = (series / series.shift(12) - 1).dropna()
+    spread = float(yoy.std()) if len(yoy) >= 2 else 0.3
+
+    last_month = history["month"].max()
+    forecast_rows = []
+    for h in range(1, 7):
+        target_month = last_month + pd.DateOffset(months=h)
+        source_month = target_month - pd.DateOffset(months=12)
+        point = series.get(source_month, pd.NA)
+        forecast_rows.append(
+            {
+                "month": target_month,
+                "accident_count": point,
+                "kind": "forecast",
+                "lower": point * max(0.0, 1 - spread) if pd.notna(point) else pd.NA,
+                "upper": point * (1 + spread) if pd.notna(point) else pd.NA,
+            }
+        )
+    forecast_df = pd.DataFrame(forecast_rows)
+    return pd.concat([history, forecast_df], ignore_index=True)
