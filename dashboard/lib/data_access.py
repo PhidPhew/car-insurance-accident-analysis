@@ -643,3 +643,85 @@ def holiday_vs_normal_comparison(f: Filters) -> pd.DataFrame:
         """,
         [f.start_date, f.end_date, list(f.geography_sks), list(f.vehicle_sks), list(f.agencies)],
     ).fetchdf()
+
+
+@st.cache_data(show_spinner=False)
+def portfolio_segment_matrix(f: Filters) -> pd.DataFrame:
+    """Vehicle group x region matrix (BQ5): loss ratio + severity, one row per
+    cell. Portfolio measures (loss_ratio, earned_premium, incurred_claim_amount)
+    clipped to fact_underwriting_monthly's real availability window; severity
+    measures from fact_accident over the full filter date range."""
+    con = get_connection()
+    window = f.underwriting_window()
+    portfolio = pd.DataFrame(
+        columns=[
+            "vehicle_group",
+            "region",
+            "earned_premium",
+            "incurred_claim_amount",
+            "claim_count",
+        ]
+    )
+    if window is not None:
+        start, end = window
+        portfolio = con.execute(
+            """
+            SELECT
+                v.vehicle_group_label AS vehicle_group,
+                g.region,
+                SUM(u.earned_premium)::DOUBLE AS earned_premium,
+                SUM(u.incurred_claim_amount)::DOUBLE AS incurred_claim_amount,
+                SUM(u.claim_count)::DOUBLE AS claim_count
+            FROM fact_underwriting_monthly u
+            JOIN dim_date d ON u.date_sk = d.date_sk
+            JOIN dim_vehicle v ON u.vehicle_sk = v.vehicle_sk
+            JOIN dim_geography g ON u.geography_sk = g.geography_sk
+            WHERE d.date BETWEEN ? AND ?
+              AND u.geography_sk = ANY(?)
+              AND u.vehicle_sk = ANY(?)
+              AND g.geography_sk != -1
+              AND v.vehicle_sk != -1
+            GROUP BY 1, 2
+            """,
+            [start, end, list(f.geography_sks), list(f.vehicle_sks)],
+        ).fetchdf()
+
+    accidents = con.execute(
+        """
+        SELECT
+            v.vehicle_group_label AS vehicle_group,
+            g.region,
+            SUM(f.accident_count)::DOUBLE AS accident_count,
+            SUM(f.fatality_count)::DOUBLE AS fatality_count,
+            SUM(f.total_injury_count)::DOUBLE AS total_injury_count
+        FROM fact_accident f
+        JOIN dim_date d ON f.date_sk = d.date_sk
+        JOIN dim_vehicle v ON f.vehicle_sk = v.vehicle_sk
+        JOIN dim_geography g ON f.geography_sk = g.geography_sk
+        WHERE d.date BETWEEN ? AND ?
+          AND f.geography_sk = ANY(?)
+          AND f.vehicle_sk = ANY(?)
+          AND f.agency = ANY(?)
+          AND g.geography_sk != -1
+          AND v.vehicle_sk != -1
+        GROUP BY 1, 2
+        """,
+        [f.start_date, f.end_date, list(f.geography_sks), list(f.vehicle_sks), list(f.agencies)],
+    ).fetchdf()
+    accidents["severity_index_coarse"] = (
+        accidents["fatality_count"] * W_F_COARSE + accidents["total_injury_count"] * W_I_COARSE
+    ) / accidents["accident_count"].replace(0, pd.NA)
+
+    merged = accidents.merge(portfolio, on=["vehicle_group", "region"], how="left")
+    merged["loss_ratio"] = merged["incurred_claim_amount"] / merged["earned_premium"].replace(
+        0, pd.NA
+    )
+    # claim_count is a per-cell round() in fact_underwriting_monthly's build code
+    # (policies_in_force * CLAIM_FREQUENCY/12, cast to int): for a vehicle group
+    # whose average per-cell policies_in_force is under ~1 (Heavy Truck/Bus, Other
+    # -- CLAUDE.md §7.2, no real registration source), nearly every cell rounds to
+    # 0 claims, so incurred_claim_amount can be structurally zero across the whole
+    # scope. That is a rounding-cascade artifact of the simulation, not a real "0%
+    # loss ratio" -- null it out here rather than let it read as risk-free.
+    merged.loc[merged["claim_count"].fillna(0) == 0, "loss_ratio"] = pd.NA
+    return merged
