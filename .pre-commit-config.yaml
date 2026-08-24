@@ -24,6 +24,9 @@ repos:
           - polars
           - types-PyMySQL
           - torch
+          - streamlit
+          - types-python-dateutil
+          - duckdb
         pass_filenames: false
         args: []
 
@@ -35,4 +38,9 @@ repos:
       - id: check-yaml
       - id: check-added-large-files
         args: [--maxkb=5000]
+        # data/30_warehouse/warehouse.duckdb + data/50_models/* are a deliberate
+        # Phase 7 exception (build artifacts committed for Streamlit Community
+        # Cloud deploy, see .gitignore) -- exempt them from the size gate rather
+        # than raising the ceiling for everything else.
+        exclude: ^data/(30_warehouse/warehouse\.duckdb|50_models/.*\.(joblib|pt))$
       - id: check-merge-conflict

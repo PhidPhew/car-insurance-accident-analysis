@@ -1,9 +1,22 @@
 # Data — never commit real data. Real data lives in the team's Google Drive.
 # (tests/fixtures/ is a separate top-level path and is tracked normally.)
-data/
+# data/00_raw/ stays untracked via this blanket rule (no exception below).
+data/*
 
-# Warehouse / DB files
-*.duckdb
+# Exception (Phase 7, decided 2026-08-24): the built warehouse + persisted
+# models are derived build artifacts, not raw source data. Streamlit
+# Community Cloud deploys straight from GitHub with no persistent mounted
+# storage, so the dashboard needs these committed to run.
+!data/30_warehouse/
+data/30_warehouse/*
+!data/30_warehouse/warehouse.duckdb
+
+!data/50_models/
+data/50_models/*
+!data/50_models/*.joblib
+!data/50_models/*.pt
+
+# Warehouse / DB files (elsewhere in the repo — not the exception above)
 *.duckdb.wal
 *.sqlite
 *.sqlite3
