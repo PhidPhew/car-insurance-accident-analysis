@@ -22,6 +22,14 @@ Categorical columns are encoded as pandas `category` dtype with levels fixed fro
 the training split (`fit_category_levels`) and reapplied unchanged to valid/test --
 LightGBM's native categorical handling needs consistent category codes across
 splits, same reasoning as the GLM's `build_design_matrices` reuse.
+
+**`avg_days_to_next_holiday` deliberately excluded from `FREQ_SEV_NUMERIC_COLS`**
+(Phase 5 Step 4 business-sense review, checked 2026-08-14): it ranked #2 by SHAP
+importance in the frequency model, but its partial-dependence curve was
+non-monotonic/spiky rather than a coherent trend, and it correlates -0.71 with
+`n_holiday_days` in this frame -- symptomatic of fighting that cleaner signal
+collinearly rather than adding real information. `n_holiday_days`/`has_songkran`/
+`has_newyear` already cover the holiday-risk story (BQ3) without this ambiguity.
 """
 
 from __future__ import annotations
@@ -50,7 +58,6 @@ FREQ_SEV_NUMERIC_COLS = [
     "r35mm_avg_days_2014_2023",
     "n_holiday_days",
     "n_long_weekend_days",
-    "avg_days_to_next_holiday",
 ]
 FREQ_SEV_FEATURE_COLS = FREQ_SEV_CATEGORICAL_COLS + FREQ_SEV_BOOLEAN_COLS + FREQ_SEV_NUMERIC_COLS
 
