@@ -23,6 +23,7 @@ repos:
           - holidays
           - polars
           - types-PyMySQL
+          - torch
         pass_filenames: false
         args: []
 

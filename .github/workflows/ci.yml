@@ -31,7 +31,15 @@ jobs:
         run: uv run mypy
 
       - name: pytest
-        run: uv run pytest --cov=src/rri --cov-report=term-missing --cov-report=xml
+        run: |
+          # PyTorch and LightGBM tests split into separate processes -- see
+          # tests/conftest.py and the Makefile `test` target for why.
+          rm -f .coverage
+          uv run pytest --cov=src/rri --cov-report=term-missing \
+            --ignore=tests/unit/test_mlp_entity_embeddings.py --ignore=tests/unit/test_gru_forecast.py
+          uv run pytest --cov=src/rri --cov-report=term-missing --cov-append \
+            tests/unit/test_mlp_entity_embeddings.py tests/unit/test_gru_forecast.py
+          uv run coverage xml
 
       - name: Enforce coverage floor for src/rri/cleaning
         run: |

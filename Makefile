@@ -5,7 +5,17 @@ setup:
 	uv run pre-commit install
 
 test:
-	uv run pytest --cov=src/rri --cov-report=term-missing
+	# Split in two: PyTorch (rri.models.mlp_entity_embeddings/gru_forecast) and
+	# LightGBM (rri.models.lightgbm_baseline) both bundle their own libomp
+	# runtime, and loading both in one process reliably segfaults inside
+	# LightGBM's Dataset construction partway through the full suite (see
+	# tests/conftest.py) -- two separate pytest processes never let both
+	# libraries share a process. --cov-append merges the coverage data.
+	rm -f .coverage
+	uv run pytest --cov=src/rri --cov-report=term-missing \
+		--ignore=tests/unit/test_mlp_entity_embeddings.py --ignore=tests/unit/test_gru_forecast.py
+	uv run pytest --cov=src/rri --cov-report=term-missing --cov-append \
+		tests/unit/test_mlp_entity_embeddings.py tests/unit/test_gru_forecast.py
 
 lint:
 	uv run ruff check .

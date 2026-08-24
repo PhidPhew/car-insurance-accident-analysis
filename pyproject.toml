@@ -25,6 +25,7 @@ dependencies = [
     "lightgbm>=4.7.0",
     "shap>=0.51.0",
     "scikit-learn>=1.9.0",
+    "torch>=2.13.0",
 ]
 
 [dependency-groups]
@@ -40,6 +41,8 @@ dev = [
     "types-requests>=2.32",
     "types-pymysql>=1.1",
     "matplotlib>=3.11.1",
+    "pytest-forked>=1.7.5",
+    "pytest-xdist>=3.8.0",
 ]
 
 [build-system]
@@ -78,6 +81,8 @@ module = [
     "shap.*",
     "lightgbm.*",
     "matplotlib.*",
+    "torch.*",
+    "sklearn.*",
 ]
 ignore_missing_imports = true
 

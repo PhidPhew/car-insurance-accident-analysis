@@ -100,6 +100,16 @@ _LGBM_PARAMS_BASE: dict[str, Any] = {
     "seed": RANDOM_SEED,
     "verbose": -1,
     "deterministic": True,
+    # Pinned rather than left at LightGBM's default (-1, "use all cores"): this
+    # project also uses PyTorch (rri.models.mlp_entity_embeddings/gru_forecast),
+    # and LightGBM's bundled libomp spinning up its own multi-core thread pool in
+    # the same process as PyTorch's own libomp reliably segfaults inside
+    # LightGBM's Dataset construction (observed running the full pytest suite,
+    # not sample-size dependent) even with KMP_DUPLICATE_LIB_OK=TRUE set (that
+    # only silences the duplicate-runtime abort, it doesn't make the two
+    # thread pools safe to interleave). Single-threaded LightGBM sidesteps the
+    # conflict entirely; this project's dataset sizes don't need the parallelism.
+    "num_threads": 1,
 }
 _MAX_BOOST_ROUNDS = 2000
 _EARLY_STOPPING_ROUNDS = 30
