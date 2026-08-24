@@ -793,3 +793,63 @@ def forecast_series(f: Filters) -> pd.DataFrame:
         )
     forecast_df = pd.DataFrame(forecast_rows)
     return pd.concat([history, forecast_df], ignore_index=True)
+
+
+@st.cache_data(show_spinner=False)
+def ev_share_summary(f: Filters) -> pd.DataFrame:
+    """Province-level ev_share vs. severity (BQ8) -- ecological comparison only,
+    see CLAUDE.md's decision log (2026-08-24): ev_share is a diagnosed
+    province-identity/urbanization proxy (r=0.83 vs. total registered
+    vehicles), not a causal EV effect. fact_accident has no per-vehicle fuel
+    type, so this can only ever be a province-level (ecological) view."""
+    con = get_connection()
+    df = con.execute(
+        """
+        SELECT
+            g.province_en,
+            g.region,
+            g.ev_share,
+            SUM(f.accident_count)::DOUBLE AS accident_count,
+            SUM(f.fatality_count)::DOUBLE AS fatality_count,
+            SUM(f.total_injury_count)::DOUBLE AS total_injury_count
+        FROM fact_accident f
+        JOIN dim_date d ON f.date_sk = d.date_sk
+        JOIN dim_geography g ON f.geography_sk = g.geography_sk
+        WHERE d.date BETWEEN ? AND ?
+          AND f.geography_sk = ANY(?)
+          AND f.vehicle_sk = ANY(?)
+          AND f.agency = ANY(?)
+          AND g.geography_sk != -1
+          AND g.ev_share IS NOT NULL
+        GROUP BY 1, 2, 3
+        """,
+        [f.start_date, f.end_date, list(f.geography_sks), list(f.vehicle_sks), list(f.agencies)],
+    ).fetchdf()
+    df["severity_index_coarse"] = (
+        df["fatality_count"] * W_F_COARSE + df["total_injury_count"] * W_I_COARSE
+    ) / df["accident_count"].replace(0, pd.NA)
+    return df
+
+
+@st.cache_data(show_spinner=False)
+def data_quality_gate2() -> dict[str, float]:
+    """Live re-query of the Gate 2 reconciliation numbers (CLAUDE.md §6) --
+    post-load, post-dedup, straight from the built warehouse right now."""
+    con = get_connection()
+    row = con.execute("SELECT COUNT(*), SUM(fatality_count) FROM fact_accident").fetchone()
+    assert row is not None
+    return {"accident_count": float(row[0]), "fatality_count": float(row[1])}
+
+
+@st.cache_data(show_spinner=False)
+def agency_coverage() -> pd.DataFrame:
+    """Live accident share by reporting agency (P7.13 coverage bias)."""
+    con = get_connection()
+    return con.execute(
+        """
+        SELECT agency, COUNT(*)::DOUBLE AS accident_count
+        FROM fact_accident
+        GROUP BY 1
+        ORDER BY 2 DESC
+        """
+    ).fetchdf()
