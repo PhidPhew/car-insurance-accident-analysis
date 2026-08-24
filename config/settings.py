@@ -85,6 +85,7 @@ class Settings(BaseSettings):
     intermediate_dir: Path = Path()
     warehouse_dir: Path = Path()
     exports_dir: Path = Path()
+    models_dir: Path = Path()
     notebooks_dir: Path = Path()
     reports_dir: Path = Path()
     logs_dir: Path = Path()
@@ -101,6 +102,7 @@ class Settings(BaseSettings):
         self.intermediate_dir = self.data_dir / "20_intermediate"
         self.warehouse_dir = self.data_dir / "30_warehouse"
         self.exports_dir = self.data_dir / "40_exports"
+        self.models_dir = self.data_dir / "50_models"
         self.notebooks_dir = base / "notebooks"
         self.reports_dir = base / "reports"
         self.logs_dir = base / "logs"
@@ -124,6 +126,7 @@ class Settings(BaseSettings):
             self.intermediate_dir,
             self.warehouse_dir,
             self.exports_dir,
+            self.models_dir,
             self.reports_dir,
             self.logs_dir,
             self.fixtures_dir,
