@@ -1,0 +1,9 @@
+tier,task,metric_name,metric_value,gini,train_time_seconds,explainability
+L0 GLM,frequency,poisson_deviance,16.665910914688865,0.7513780974907451,0.04080700874328613,high (coefficients)
+L1 LightGBM,frequency,poisson_deviance,27.540290160024554,0.7728772882306792,0.14522314071655273,high (SHAP)
+L0 GLM,severity,gamma_deviance,1.2133277771330822,0.498791828670961,0.05614733695983887,high (coefficients)
+L1 LightGBM,severity,gamma_deviance,1.2087438563190542,0.511316592547969,0.03947806358337402,high (SHAP)
+L1 LightGBM,severity classifier,macro_f1,0.3978513963001676,,3.6853702068328857,high (SHAP)
+L2 MLP+embeddings,severity classifier,macro_f1,0.3822688540677901,,4.287334203720093,"medium (embeddings + t-SNE, no per-prediction SHAP this phase)"
+L3 GRU,6-month forecast,poisson_deviance,14.640051762213428,,1.9463071823120117,low (black-box sequence weights)
+L3 seasonal-naive,6-month forecast,poisson_deviance,7.396414608105868,,0.0,trivial (lag-12 lookup)
