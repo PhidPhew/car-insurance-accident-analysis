@@ -579,3 +579,67 @@ def weather_band_vs_forecast_rain(f: Filters) -> pd.DataFrame:
             str(RAINFALL_PATH),
         ],
     ).fetchdf()
+
+
+@st.cache_data(show_spinner=False)
+def monthly_trend_with_calendar(f: Filters) -> pd.DataFrame:
+    """Monthly accident trend (like `monthly_trend`) plus calendar overlay flags
+    for BQ3 (Songkran/New Year "7 dangerous days" windows, COVID disruption) --
+    joined from dim_date's own boolean columns, not recomputed."""
+    con = get_connection()
+    df = con.execute(
+        """
+        SELECT
+            date_trunc('month', d.date) AS month,
+            SUM(f.accident_count)::DOUBLE AS accident_count,
+            SUM(f.fatality_count)::DOUBLE AS fatality_count,
+            SUM(f.total_injury_count)::DOUBLE AS total_injury_count,
+            bool_or(d.is_songkran_7days) AS has_songkran,
+            bool_or(d.is_newyear_7days) AS has_newyear,
+            max(CASE d.covid_disruption_level
+                WHEN 'severe' THEN 2 WHEN 'partial' THEN 1 ELSE 0 END) AS covid_level
+        FROM fact_accident f
+        JOIN dim_date d ON f.date_sk = d.date_sk
+        WHERE d.date BETWEEN ? AND ?
+          AND f.geography_sk = ANY(?)
+          AND f.vehicle_sk = ANY(?)
+          AND f.agency = ANY(?)
+        GROUP BY 1
+        ORDER BY 1
+        """,
+        [f.start_date, f.end_date, list(f.geography_sks), list(f.vehicle_sks), list(f.agencies)],
+    ).fetchdf()
+    df["severity_index_coarse"] = (
+        df["fatality_count"] * W_F_COARSE + df["total_injury_count"] * W_I_COARSE
+    ) / df["accident_count"].replace(0, pd.NA)
+    return df
+
+
+@st.cache_data(show_spinner=False)
+def holiday_vs_normal_comparison(f: Filters) -> pd.DataFrame:
+    """Accident count and severity, split by holiday-period type (BQ3):
+    Songkran 7 days, New Year 7 days, vs. every other day in scope."""
+    con = get_connection()
+    return con.execute(
+        """
+        SELECT
+            CASE
+                WHEN d.is_songkran_7days THEN 'Songkran (7 days)'
+                WHEN d.is_newyear_7days THEN 'New Year (7 days)'
+                ELSE 'Other days'
+            END AS period,
+            COUNT(*)::DOUBLE AS accident_count,
+            SUM(f.fatality_count)::DOUBLE AS fatality_count,
+            SUM(f.total_injury_count)::DOUBLE AS total_injury_count,
+            COUNT(DISTINCT d.date)::DOUBLE AS n_days
+        FROM fact_accident f
+        JOIN dim_date d ON f.date_sk = d.date_sk
+        WHERE d.date BETWEEN ? AND ?
+          AND f.geography_sk = ANY(?)
+          AND f.vehicle_sk = ANY(?)
+          AND f.agency = ANY(?)
+          AND d.date_sk != -1
+        GROUP BY 1
+        """,
+        [f.start_date, f.end_date, list(f.geography_sks), list(f.vehicle_sks), list(f.agencies)],
+    ).fetchdf()
