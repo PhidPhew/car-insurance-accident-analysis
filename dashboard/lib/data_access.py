@@ -255,7 +255,12 @@ MIN_ACCIDENTS_FOR_PROVINCE_MONTH = 5
 @st.cache_data(show_spinner=False)
 def province_summary(f: Filters) -> pd.DataFrame:
     """One row per province: accident/severity aggregates joined with
-    dim_geography's tourism and flood/rain attributes (BQ1, BQ4)."""
+    dim_geography's tourism and flood/rain attributes (BQ1, BQ4).
+
+    `centroid_lat`/`centroid_lon` average the province's own valid accident
+    coordinates -- there is no committed province-boundary GeoJSON in this
+    project, so the map (page 2) uses these data-derived centroids for a
+    bubble map rather than a true polygon choropleth (documented there)."""
     con = get_connection()
     df = con.execute(
         """
@@ -269,7 +274,9 @@ def province_summary(f: Filters) -> pd.DataFrame:
             g.r35mm_avg_days_2014_2023,
             SUM(f.accident_count)::DOUBLE AS accident_count,
             SUM(f.fatality_count)::DOUBLE AS fatality_count,
-            SUM(f.total_injury_count)::DOUBLE AS total_injury_count
+            SUM(f.total_injury_count)::DOUBLE AS total_injury_count,
+            AVG(CASE WHEN f.is_geo_valid THEN f.latitude END) AS centroid_lat,
+            AVG(CASE WHEN f.is_geo_valid THEN f.longitude END) AS centroid_lon
         FROM fact_accident f
         JOIN dim_date d ON f.date_sk = d.date_sk
         JOIN dim_geography g ON f.geography_sk = g.geography_sk
@@ -286,6 +293,97 @@ def province_summary(f: Filters) -> pd.DataFrame:
         df["fatality_count"] * W_F_COARSE + df["total_injury_count"] * W_I_COARSE
     ) / df["accident_count"].replace(0, pd.NA)
     return df
+
+
+@st.cache_data(show_spinner=False)
+def province_exposure_adjusted_rate(f: Filters) -> pd.DataFrame:
+    """Accidents per 1,000 exposed vehicles, by province -- the exposure-adjusted
+    view for the spatial risk map. Uses fact_underwriting_monthly's real-fleet
+    `exposure_vehicle_months` (not SiamShield's own book), clipped to its actual
+    availability window (2022-01 to 2025-12) intersected with the filter range."""
+    window = f.underwriting_window()
+    if window is None:
+        return pd.DataFrame(columns=["geography_sk", "accidents_per_1000_vehicles"])
+    start, end = window
+    con = get_connection()
+    return con.execute(
+        """
+        WITH exposure AS (
+            SELECT u.geography_sk, SUM(u.exposure_vehicle_months) / 12 AS vehicle_years
+            FROM fact_underwriting_monthly u
+            JOIN dim_date d ON u.date_sk = d.date_sk
+            WHERE d.date BETWEEN ? AND ?
+              AND u.geography_sk = ANY(?)
+              AND u.vehicle_sk = ANY(?)
+            GROUP BY 1
+        ),
+        accidents AS (
+            SELECT f.geography_sk, SUM(f.accident_count) AS accident_count
+            FROM fact_accident f
+            JOIN dim_date d ON f.date_sk = d.date_sk
+            WHERE d.date BETWEEN ? AND ?
+              AND f.geography_sk = ANY(?)
+              AND f.vehicle_sk = ANY(?)
+              AND f.agency = ANY(?)
+            GROUP BY 1
+        )
+        SELECT
+            e.geography_sk,
+            (a.accident_count::DOUBLE / NULLIF(e.vehicle_years, 0)) * 1000
+                AS accidents_per_1000_vehicles
+        FROM exposure e
+        JOIN accidents a ON e.geography_sk = a.geography_sk
+        """,
+        [
+            start,
+            end,
+            list(f.geography_sks),
+            list(f.vehicle_sks),
+            start,
+            end,
+            list(f.geography_sks),
+            list(f.vehicle_sks),
+            list(f.agencies),
+        ],
+    ).fetchdf()
+
+
+@st.cache_data(show_spinner=False)
+def accident_points(f: Filters, geography_sk: int, limit: int = 2000) -> pd.DataFrame:
+    """Individual accident coordinates for one province -- the BQ1 drill-down
+    from province-level aggregates down to actual accident locations."""
+    con = get_connection()
+    return con.execute(
+        """
+        SELECT
+            f.latitude,
+            f.longitude,
+            d.date,
+            f.fatality_count,
+            f.total_injury_count,
+            v.vehicle_group_label,
+            ac.cause_group
+        FROM fact_accident f
+        JOIN dim_date d ON f.date_sk = d.date_sk
+        JOIN dim_vehicle v ON f.vehicle_sk = v.vehicle_sk
+        JOIN dim_accident_context ac ON f.accident_context_sk = ac.accident_context_sk
+        WHERE f.geography_sk = ?
+          AND f.is_geo_valid
+          AND d.date BETWEEN ? AND ?
+          AND f.vehicle_sk = ANY(?)
+          AND f.agency = ANY(?)
+        ORDER BY d.date DESC
+        LIMIT ?
+        """,
+        [
+            geography_sk,
+            f.start_date,
+            f.end_date,
+            list(f.vehicle_sks),
+            list(f.agencies),
+            limit,
+        ],
+    ).fetchdf()
 
 
 @st.cache_data(show_spinner=False)
