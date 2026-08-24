@@ -47,6 +47,12 @@ DEFAULT_TREND_END = date(2025, 12, 31)
 MIN_ACCIDENTS_FOR_ALERT = 30
 ALERT_STD_MULTIPLIER = 1.0
 
+#: Cleaned rainfall staging output (Phase 2) -- see .gitignore for why this is
+#: committed. Not a warehouse table (CLAUDE.md §8's star schema has no rainfall
+#: dimension, a real design gap); read directly here since it's already-cleaned
+#: pipeline output, not raw data and not a dashboard-side recomputation.
+RAINFALL_PATH = settings.staging_dir / "rainfall.parquet"
+
 AGENCY_LABELS = {
     "กรมทางหลวง": "Highways",
     "กรมทางหลวงชนบท": "Rural Roads",
@@ -466,3 +472,110 @@ def provinces_over_threshold(f: Filters) -> ProvinceAlerts:
         "severity_index_coarse", ascending=False
     )
     return ProvinceAlerts(threshold=threshold, flagged=flagged)
+
+
+@st.cache_data(show_spinner=False)
+def rainfall_vs_accidents(f: Filters) -> pd.DataFrame:
+    """One row per province x month in scope: accident_count, severity_index_coarse,
+    and that month's rain_lead0 (nowcast rainfall, lead-0 of the forecast pivot) --
+    BQ2's rainfall-vs-frequency view. Joined by (province, year, month), the same
+    known-future convention `rri.features.frequency_severity` established."""
+    con = get_connection()
+    df = con.execute(
+        """
+        WITH accidents AS (
+            SELECT
+                g.province_id, g.province_en, g.region,
+                d.year, d.month,
+                SUM(f.accident_count)::DOUBLE AS accident_count,
+                SUM(f.fatality_count)::DOUBLE AS fatality_count,
+                SUM(f.total_injury_count)::DOUBLE AS total_injury_count
+            FROM fact_accident f
+            JOIN dim_date d ON f.date_sk = d.date_sk
+            JOIN dim_geography g ON f.geography_sk = g.geography_sk
+            WHERE d.date BETWEEN ? AND ?
+              AND f.geography_sk = ANY(?)
+              AND f.vehicle_sk = ANY(?)
+              AND f.agency = ANY(?)
+              AND g.geography_sk != -1
+            GROUP BY 1, 2, 3, 4, 5
+        ),
+        rain AS (
+            SELECT
+                Province_ID AS province_id,
+                CAST(Initial_Year AS INTEGER) AS year,
+                CAST(Initial_Month AS INTEGER) AS month,
+                rain_lead0
+            FROM read_parquet(?)
+        )
+        SELECT a.*, r.rain_lead0
+        FROM accidents a
+        JOIN rain r ON a.province_id = r.province_id AND a.year = r.year AND a.month = r.month
+        """,
+        [
+            f.start_date,
+            f.end_date,
+            list(f.geography_sks),
+            list(f.vehicle_sks),
+            list(f.agencies),
+            str(RAINFALL_PATH),
+        ],
+    ).fetchdf()
+    df["severity_index_coarse"] = (
+        df["fatality_count"] * W_F_COARSE + df["total_injury_count"] * W_I_COARSE
+    ) / df["accident_count"].replace(0, pd.NA)
+    return df
+
+
+@st.cache_data(show_spinner=False)
+def weather_band_vs_forecast_rain(f: Filters) -> pd.DataFrame:
+    """Average forecast rainfall (rain_lead0, for the accident's own province+month)
+    grouped by the REPORTED weather condition at accident time -- a cross-check of
+    whether the rainfall forecast and ground-truth accident reports agree
+    directionally (BQ2)."""
+    con = get_connection()
+    return con.execute(
+        """
+        WITH acc AS (
+            SELECT
+                w.weather_band, w.is_hazardous,
+                g.province_id, d.year, d.month
+            FROM fact_accident f
+            JOIN dim_date d ON f.date_sk = d.date_sk
+            JOIN dim_geography g ON f.geography_sk = g.geography_sk
+            JOIN dim_weather_band w ON f.weather_band_sk = w.weather_band_sk
+            WHERE d.date BETWEEN ? AND ?
+              AND f.geography_sk = ANY(?)
+              AND f.vehicle_sk = ANY(?)
+              AND f.agency = ANY(?)
+              AND g.geography_sk != -1
+              AND w.weather_band_sk != -1
+        ),
+        rain AS (
+            SELECT
+                Province_ID AS province_id,
+                CAST(Initial_Year AS INTEGER) AS year,
+                CAST(Initial_Month AS INTEGER) AS month,
+                rain_lead0
+            FROM read_parquet(?)
+        )
+        SELECT
+            acc.weather_band,
+            acc.is_hazardous,
+            AVG(rain.rain_lead0) AS avg_forecast_rain_mm,
+            COUNT(*)::DOUBLE AS accident_count
+        FROM acc
+        JOIN rain ON acc.province_id = rain.province_id
+            AND acc.year = rain.year AND acc.month = rain.month
+        GROUP BY 1, 2
+        ORDER BY avg_forecast_rain_mm DESC
+        """,
+        [
+            f.start_date,
+            f.end_date,
+            list(f.geography_sks),
+            list(f.vehicle_sks),
+            list(f.agencies),
+            str(RAINFALL_PATH),
+        ],
+    ).fetchdf()
