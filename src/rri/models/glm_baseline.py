@@ -61,7 +61,7 @@ def compute_flood_fill_value(train: pl.DataFrame) -> float:
     return float(mean)  # type: ignore[arg-type]
 
 
-def _fill_flood_na(df: pl.DataFrame, fill_value: float) -> pl.DataFrame:
+def fill_flood_na(df: pl.DataFrame, fill_value: float) -> pl.DataFrame:
     """Mean-impute `flood_pct_high_risk_tambons` (null for Phuket/Ranong, CLAUDE.md P6).
 
     `flood_data_available` stays in the frame as the honest missingness signal;
@@ -82,7 +82,7 @@ def severity_training_rows(df: pl.DataFrame) -> pl.DataFrame:
 
 def fit_poisson_frequency_glm(train: pl.DataFrame, flood_fill_value: float) -> FittedGlm:
     """Fit the Poisson frequency GLM, offset by `log_exposure`."""
-    pdf: pd.DataFrame = _fill_flood_na(train, flood_fill_value).to_pandas()
+    pdf: pd.DataFrame = fill_flood_na(train, flood_fill_value).to_pandas()
     y, x = dmatrices(FREQUENCY_FORMULA, data=pdf, return_type="dataframe")
     model = sm.GLM(y, x, family=sm.families.Poisson(), offset=pdf["log_exposure"].to_numpy())
     result = model.fit()
@@ -91,7 +91,7 @@ def fit_poisson_frequency_glm(train: pl.DataFrame, flood_fill_value: float) -> F
 
 def fit_gamma_severity_glm(train: pl.DataFrame, flood_fill_value: float) -> FittedGlm:
     """Fit the Gamma severity GLM (no offset -- severity isn't exposure-normalized)."""
-    pdf: pd.DataFrame = _fill_flood_na(train, flood_fill_value).to_pandas()
+    pdf: pd.DataFrame = fill_flood_na(train, flood_fill_value).to_pandas()
     y, x = dmatrices(SEVERITY_FORMULA, data=pdf, return_type="dataframe")
     model = sm.GLM(y, x, family=sm.families.Gamma(link=sm.families.links.Log()))
     result = model.fit()
@@ -105,7 +105,7 @@ def predict_glm(fitted: FittedGlm, df: pl.DataFrame, flood_fill_value: float) ->
     valid/test rows are encoded identically to train even if a category is
     absent from this particular slice.
     """
-    pdf: pd.DataFrame = _fill_flood_na(df, flood_fill_value).to_pandas()
+    pdf: pd.DataFrame = fill_flood_na(df, flood_fill_value).to_pandas()
     (x,) = build_design_matrices([fitted.design_info], pdf, return_type="dataframe")
     offset = pdf[fitted.offset_col].to_numpy() if fitted.offset_col else None
     prediction = fitted.result.predict(x, offset=offset)
