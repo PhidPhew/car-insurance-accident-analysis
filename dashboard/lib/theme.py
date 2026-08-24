@@ -126,13 +126,12 @@ def inject_theme() -> None:
 
 
 def page_header(title: str, subtitle: str) -> None:
+    # Single line, no leading whitespace, no embedded blank line -- st.markdown
+    # runs content through a CommonMark parser, and an indented / blank-line-
+    # interrupted multi-line HTML block gets misread as an indented code block
+    # (see kpi_card_html's docstring note below for the mechanism).
     st.markdown(
-        f"""
-        <div class="siamshield-header">
-            <h1>{title}</h1>
-            <p>{subtitle}</p>
-        </div>
-        """,
+        f'<div class="siamshield-header"><h1>{title}</h1><p>{subtitle}</p></div>',
         unsafe_allow_html=True,
     )
 
@@ -149,6 +148,16 @@ def kpi_card_html(
     higher_is_worse: bool = True,
     caveat: str | None = None,
 ) -> str:
+    """Returns ONE line, no leading whitespace, no embedded blank line.
+
+    `st.markdown` runs its content through a CommonMark parser. A raw `<div>`
+    block only stays "raw HTML" across multiple lines up to the next blank
+    (or whitespace-only) line -- past that, indented lines are read as an
+    *indented code block* and printed literally instead of rendered. Joining
+    several indented, multi-line card templates (the original bug here)
+    reliably breaks after the first card for exactly this reason. Building
+    everything as one line sidesteps the ambiguity entirely.
+    """
     if delta_pct is None:
         delta_html = '<div class="kpi-delta neutral">YoY: N/A</div>'
     else:
@@ -157,14 +166,14 @@ def kpi_card_html(
         cls = "bad" if is_bad else "good"
         delta_html = f'<div class="kpi-delta {cls}">{arrow} {abs(delta_pct):.1f}% YoY</div>'
     caveat_html = f'<div class="kpi-caveat">{caveat}</div>' if caveat else ""
-    return f"""
-        <div class="kpi-card">
-            <div class="kpi-label">{label}</div>
-            <div class="kpi-value">{value}</div>
-            {delta_html}
-            {caveat_html}
-        </div>
-    """
+    return (
+        '<div class="kpi-card">'
+        f'<div class="kpi-label">{label}</div>'
+        f'<div class="kpi-value">{value}</div>'
+        f"{delta_html}"
+        f"{caveat_html}"
+        "</div>"
+    )
 
 
 def render_kpi_row(cards: list[str]) -> None:
