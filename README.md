@@ -81,6 +81,26 @@ make profile      # รัน notebook 01_data_profiling.ipynb ใหม่ท�
 uv run python scripts/make_fixtures.py
 ```
 
+## แดชบอร์ด (Dashboard)
+
+Streamlit dashboard 8 หน้า ตอบคำถามธุรกิจทั้ง 8 ข้อ (BQ1–BQ8) — UI เป็นภาษาอังกฤษ
+(CLAUDE.md N10) อ่านข้อมูลจาก `data/30_warehouse/warehouse.duckdb` และเรียกโมเดลที่ persist
+ไว้แล้วเท่านั้น ไม่มีการ recompute cleaning/feature/training ใน dashboard code
+
+**Public URL:** https://car-insurance-accident-analysis-fst5y6vwgfrfd84gc6nowq.streamlit.app
+
+รันในเครื่องตัวเอง:
+
+```bash
+uv run streamlit run dashboard/app.py
+```
+
+`data/30_warehouse/warehouse.duckdb`, `data/50_models/*.{joblib,pt}`, และ
+`data/10_staging/rainfall.parquet` ถูก commit เข้า git โดยเจตนา (ข้อยกเว้นเฉพาะจุดใน
+`.gitignore`) เพราะเป็น build artifact ที่ deploy แล้ว ไม่ใช่ข้อมูลดิบ — Streamlit Community
+Cloud deploy ตรงจาก GitHub โดยไม่มี persistent storage ให้ mount จึงต้อง commit ไฟล์เหล่านี้
+เพื่อให้แอปที่ deploy แล้วรันได้จริง
+
 ## มาตรฐานโค้ด
 
 - ทุกฟังก์ชันต้องมี type hint ครบ, ผ่าน `mypy --strict`

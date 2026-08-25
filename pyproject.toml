@@ -26,6 +26,8 @@ dependencies = [
     "shap>=0.51.0",
     "scikit-learn>=1.9.0",
     "torch>=2.13.0",
+    "streamlit>=1.62.0",
+    "plotly>=6.9.0",
 ]
 
 [dependency-groups]
@@ -40,6 +42,7 @@ dev = [
     "pandas-stubs>=2.2",
     "types-requests>=2.32",
     "types-pymysql>=1.1",
+    "types-python-dateutil>=2.9",
     "matplotlib>=3.11.1",
     "pytest-forked>=1.7.5",
     "pytest-xdist>=3.8.0",
@@ -55,21 +58,21 @@ packages = ["src/rri"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-src = ["src", "tests", "scripts"]
+src = ["src", "tests", "scripts", "dashboard"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "N"]
 ignore = []
 
 [tool.ruff.lint.isort]
-known-first-party = ["rri", "config"]
+known-first-party = ["rri", "config", "dashboard"]
 
 [tool.mypy]
 python_version = "3.11"
 strict = true
 mypy_path = "src"
 explicit_package_bases = true
-files = ["src/rri", "config", "tests", "scripts"]
+files = ["src/rri", "config", "tests", "scripts", "dashboard"]
 
 [[tool.mypy.overrides]]
 module = [
@@ -84,6 +87,7 @@ module = [
     "torch.*",
     "sklearn.*",
     "joblib.*",
+    "plotly.*",
 ]
 ignore_missing_imports = true
 
