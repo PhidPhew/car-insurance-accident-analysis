@@ -75,6 +75,11 @@ class Settings(BaseSettings):
 
     random_seed: int = 42
 
+    #: Model used for AI insight generation (Phase 8). Configurable rather
+    #: than hard-coded so the project doesn't pin to a model string that
+    #: ages out -- override with RRI_INSIGHT_MODEL.
+    insight_model: str = "claude-sonnet-5"
+
     # -- derived paths (computed in model_post_init, not stored as literal
     #    defaults, since they all depend on base_dir) --
     config_dir: Path = Path()
