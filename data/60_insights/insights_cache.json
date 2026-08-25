@@ -1,0 +1,764 @@
+{
+  "generated_at": "2026-08-25T09:46:13.018966+00:00",
+  "entries": [
+    {
+      "scope_key": "national_2025",
+      "scope_label": "National overview, 2025",
+      "geography_sk": null,
+      "start_date": "2025-01-01",
+      "end_date": "2025-12-31",
+      "generated_at": "2026-08-25T09:45:51.504404+00:00",
+      "insight": {
+        "narrative": "In 2025, the national scope recorded 23,715 accidents resulting in 2,783 fatalities and 19,475 injuries, yielding a severity index of 6.46 — down 5.23% year-over-year, alongside a 0.99% decline in accident volume. The simulated insurance portfolio showed a 66.43% loss ratio and claim frequency of 0.06 claims per policy-year. Mukdahan emerged as the riskiest province (severity index 13.97 across 144 accidents), followed by Phitsanulok (12.36 over 197 accidents) and Prachin Buri (11.71 over 249 accidents).",
+        "self_reported_citations": [
+          {
+            "fact_key": "accident_count",
+            "value_as_used": "23,715"
+          },
+          {
+            "fact_key": "fatality_count",
+            "value_as_used": "2,783"
+          },
+          {
+            "fact_key": "total_injury_count",
+            "value_as_used": "19,475"
+          },
+          {
+            "fact_key": "severity_index_coarse",
+            "value_as_used": "6.46"
+          },
+          {
+            "fact_key": "severity_index_coarse_yoy_pct_change",
+            "value_as_used": "-5.23%"
+          },
+          {
+            "fact_key": "accident_count_yoy_pct_change",
+            "value_as_used": "-0.99%"
+          },
+          {
+            "fact_key": "loss_ratio",
+            "value_as_used": "66.43%"
+          },
+          {
+            "fact_key": "claim_frequency",
+            "value_as_used": "0.06"
+          },
+          {
+            "fact_key": "top_risk_province_1_severity_index",
+            "value_as_used": "13.97"
+          },
+          {
+            "fact_key": "top_risk_province_1_accident_count",
+            "value_as_used": "144"
+          },
+          {
+            "fact_key": "top_risk_province_2_severity_index",
+            "value_as_used": "12.36"
+          },
+          {
+            "fact_key": "top_risk_province_2_accident_count",
+            "value_as_used": "197"
+          },
+          {
+            "fact_key": "top_risk_province_3_severity_index",
+            "value_as_used": "11.71"
+          },
+          {
+            "fact_key": "top_risk_province_3_accident_count",
+            "value_as_used": "249"
+          }
+        ],
+        "model": "claude-sonnet-5",
+        "scope_label": "National overview, 2025"
+      },
+      "verification": {
+        "scope_label": "National overview, 2025",
+        "model": "claude-sonnet-5",
+        "narrative": "In 2025, the national scope recorded 23,715 accidents resulting in 2,783 fatalities and 19,475 injuries, yielding a severity index of 6.46 — down 5.23% year-over-year, alongside a 0.99% decline in accident volume. The simulated insurance portfolio showed a 66.43% loss ratio and claim frequency of 0.06 claims per policy-year. Mukdahan emerged as the riskiest province (severity index 13.97 across 144 accidents), followed by Phitsanulok (12.36 over 197 accidents) and Prachin Buri (11.71 over 249 accidents).",
+        "tolerance": 0.005,
+        "total_numbers": 14,
+        "matched": 14,
+        "flagged": 0,
+        "hallucination_rate": 0.0,
+        "matches": [
+          {
+            "raw_text": "23,715",
+            "parsed_value": 23715.0,
+            "matched_fact_key": "accident_count",
+            "fact_value": 23715.0,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "2,783",
+            "parsed_value": 2783.0,
+            "matched_fact_key": "fatality_count",
+            "fact_value": 2783.0,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "19,475",
+            "parsed_value": 19475.0,
+            "matched_fact_key": "total_injury_count",
+            "fact_value": 19475.0,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "6.46",
+            "parsed_value": 6.46,
+            "matched_fact_key": "severity_index_coarse",
+            "fact_value": 6.4597,
+            "relative_error": 0.000046441785222253204,
+            "status": "matched"
+          },
+          {
+            "raw_text": "5.23%",
+            "parsed_value": 5.23,
+            "matched_fact_key": "severity_index_coarse_yoy_pct_change",
+            "fact_value": -5.23,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "0.99%",
+            "parsed_value": 0.99,
+            "matched_fact_key": "accident_count_yoy_pct_change",
+            "fact_value": -0.99,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "66.43%",
+            "parsed_value": 66.43,
+            "matched_fact_key": "loss_ratio",
+            "fact_value": 66.43,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "0.06",
+            "parsed_value": 0.06,
+            "matched_fact_key": "claim_frequency",
+            "fact_value": 0.06,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "13.97",
+            "parsed_value": 13.97,
+            "matched_fact_key": "top_risk_province_1_severity_index",
+            "fact_value": 13.966,
+            "relative_error": 0.0002864098524990216,
+            "status": "matched"
+          },
+          {
+            "raw_text": "144",
+            "parsed_value": 144.0,
+            "matched_fact_key": "top_risk_province_1_accident_count",
+            "fact_value": 144.0,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "12.36",
+            "parsed_value": 12.36,
+            "matched_fact_key": "top_risk_province_2_severity_index",
+            "fact_value": 12.3569,
+            "relative_error": 0.0002508719824551369,
+            "status": "matched"
+          },
+          {
+            "raw_text": "197",
+            "parsed_value": 197.0,
+            "matched_fact_key": "top_risk_province_2_accident_count",
+            "fact_value": 197.0,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "11.71",
+            "parsed_value": 11.71,
+            "matched_fact_key": "top_risk_province_3_severity_index",
+            "fact_value": 11.7056,
+            "relative_error": 0.0003758884636413685,
+            "status": "matched"
+          },
+          {
+            "raw_text": "249",
+            "parsed_value": 249.0,
+            "matched_fact_key": "top_risk_province_3_accident_count",
+            "fact_value": 249.0,
+            "relative_error": 0.0,
+            "status": "matched"
+          }
+        ]
+      }
+    },
+    {
+      "scope_key": "national_2019_2025",
+      "scope_label": "National overview, 2019-2025",
+      "geography_sk": null,
+      "start_date": "2019-01-01",
+      "end_date": "2025-12-31",
+      "generated_at": "2026-08-25T09:45:57.760358+00:00",
+      "insight": {
+        "narrative": "From 2019-2025, the national portfolio recorded 150,866 accidents resulting in 20,424 fatalities and 124,736 injuries, yielding a severity index of 7.19 — down 1.87% year-over-year even as accident counts rose 18.65%. The simulated portfolio's loss ratio stood at 65.31% with a claim frequency of 0.0597 claims per policy-year. Phichit, Mukdahan, and Surin were the riskiest provinces by severity index (13.74, 13.30, and 13.14 respectively), despite having far fewer accidents (442, 1,075, and 1,498) than the national total.",
+        "self_reported_citations": [
+          {
+            "fact_key": "accident_count",
+            "value_as_used": "150,866"
+          },
+          {
+            "fact_key": "fatality_count",
+            "value_as_used": "20,424"
+          },
+          {
+            "fact_key": "total_injury_count",
+            "value_as_used": "124,736"
+          },
+          {
+            "fact_key": "severity_index_coarse",
+            "value_as_used": "7.19"
+          },
+          {
+            "fact_key": "severity_index_coarse_yoy_pct_change",
+            "value_as_used": "-1.87%"
+          },
+          {
+            "fact_key": "accident_count_yoy_pct_change",
+            "value_as_used": "18.65%"
+          },
+          {
+            "fact_key": "loss_ratio",
+            "value_as_used": "65.31%"
+          },
+          {
+            "fact_key": "claim_frequency",
+            "value_as_used": "0.0597"
+          },
+          {
+            "fact_key": "top_risk_province_1_severity_index",
+            "value_as_used": "13.74"
+          },
+          {
+            "fact_key": "top_risk_province_2_severity_index",
+            "value_as_used": "13.30"
+          },
+          {
+            "fact_key": "top_risk_province_3_severity_index",
+            "value_as_used": "13.14"
+          },
+          {
+            "fact_key": "top_risk_province_1_accident_count",
+            "value_as_used": "442"
+          },
+          {
+            "fact_key": "top_risk_province_2_accident_count",
+            "value_as_used": "1,075"
+          },
+          {
+            "fact_key": "top_risk_province_3_accident_count",
+            "value_as_used": "1,498"
+          }
+        ],
+        "model": "claude-sonnet-5",
+        "scope_label": "National overview, 2019-2025"
+      },
+      "verification": {
+        "scope_label": "National overview, 2019-2025",
+        "model": "claude-sonnet-5",
+        "narrative": "From 2019-2025, the national portfolio recorded 150,866 accidents resulting in 20,424 fatalities and 124,736 injuries, yielding a severity index of 7.19 — down 1.87% year-over-year even as accident counts rose 18.65%. The simulated portfolio's loss ratio stood at 65.31% with a claim frequency of 0.0597 claims per policy-year. Phichit, Mukdahan, and Surin were the riskiest provinces by severity index (13.74, 13.30, and 13.14 respectively), despite having far fewer accidents (442, 1,075, and 1,498) than the national total.",
+        "tolerance": 0.005,
+        "total_numbers": 14,
+        "matched": 14,
+        "flagged": 0,
+        "hallucination_rate": 0.0,
+        "matches": [
+          {
+            "raw_text": "150,866",
+            "parsed_value": 150866.0,
+            "matched_fact_key": "accident_count",
+            "fact_value": 150866.0,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "20,424",
+            "parsed_value": 20424.0,
+            "matched_fact_key": "fatality_count",
+            "fact_value": 20424.0,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "124,736",
+            "parsed_value": 124736.0,
+            "matched_fact_key": "total_injury_count",
+            "fact_value": 124736.0,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "7.19",
+            "parsed_value": 7.19,
+            "matched_fact_key": "severity_index_coarse",
+            "fact_value": 7.1928,
+            "relative_error": 0.00038927816705590194,
+            "status": "matched"
+          },
+          {
+            "raw_text": "1.87%",
+            "parsed_value": 1.87,
+            "matched_fact_key": "severity_index_coarse_yoy_pct_change",
+            "fact_value": -1.87,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "18.65%",
+            "parsed_value": 18.65,
+            "matched_fact_key": "accident_count_yoy_pct_change",
+            "fact_value": 18.65,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "65.31%",
+            "parsed_value": 65.31,
+            "matched_fact_key": "loss_ratio",
+            "fact_value": 65.31,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "0.0597",
+            "parsed_value": 0.0597,
+            "matched_fact_key": "claim_frequency",
+            "fact_value": 0.0597,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "13.74",
+            "parsed_value": 13.74,
+            "matched_fact_key": "top_risk_province_1_severity_index",
+            "fact_value": 13.7433,
+            "relative_error": 0.0002401170024666139,
+            "status": "matched"
+          },
+          {
+            "raw_text": "13.30",
+            "parsed_value": 13.3,
+            "matched_fact_key": "top_risk_province_2_severity_index",
+            "fact_value": 13.3012,
+            "relative_error": 0.00009021742399174358,
+            "status": "matched"
+          },
+          {
+            "raw_text": "13.14",
+            "parsed_value": 13.14,
+            "matched_fact_key": "top_risk_province_3_severity_index",
+            "fact_value": 13.1375,
+            "relative_error": 0.000190294957183732,
+            "status": "matched"
+          },
+          {
+            "raw_text": "442",
+            "parsed_value": 442.0,
+            "matched_fact_key": "top_risk_province_1_accident_count",
+            "fact_value": 442.0,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "1,075",
+            "parsed_value": 1075.0,
+            "matched_fact_key": "top_risk_province_2_accident_count",
+            "fact_value": 1075.0,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "1,498",
+            "parsed_value": 1498.0,
+            "matched_fact_key": "top_risk_province_3_accident_count",
+            "fact_value": 1498.0,
+            "relative_error": 0.0,
+            "status": "matched"
+          }
+        ]
+      }
+    },
+    {
+      "scope_key": "province_mukdahan_2025",
+      "scope_label": "Mukdahan, 2025",
+      "geography_sk": 38,
+      "start_date": "2025-01-01",
+      "end_date": "2025-12-31",
+      "generated_at": "2026-08-25T09:46:04.715688+00:00",
+      "insight": {
+        "narrative": "In Mukdahan during 2025, 144 accidents resulted in 42 fatalities and 154 injuries, yielding a severity index of 13.966 — down 4.72% year-over-year even as accident counts rose 29.73%. The simulated portfolio's loss ratio stood at 120.58% with a claim frequency of 0.0614 claims per policy-year, indicating claims outpacing earned premium despite the improving severity trend.",
+        "self_reported_citations": [
+          {
+            "fact_key": "accident_count",
+            "value_as_used": "144"
+          },
+          {
+            "fact_key": "fatality_count",
+            "value_as_used": "42"
+          },
+          {
+            "fact_key": "total_injury_count",
+            "value_as_used": "154"
+          },
+          {
+            "fact_key": "severity_index_coarse",
+            "value_as_used": "13.966"
+          },
+          {
+            "fact_key": "severity_index_coarse_yoy_pct_change",
+            "value_as_used": "-4.72%"
+          },
+          {
+            "fact_key": "accident_count_yoy_pct_change",
+            "value_as_used": "29.73%"
+          },
+          {
+            "fact_key": "loss_ratio",
+            "value_as_used": "120.58%"
+          },
+          {
+            "fact_key": "claim_frequency",
+            "value_as_used": "0.0614"
+          }
+        ],
+        "model": "claude-sonnet-5",
+        "scope_label": "Mukdahan, 2025"
+      },
+      "verification": {
+        "scope_label": "Mukdahan, 2025",
+        "model": "claude-sonnet-5",
+        "narrative": "In Mukdahan during 2025, 144 accidents resulted in 42 fatalities and 154 injuries, yielding a severity index of 13.966 — down 4.72% year-over-year even as accident counts rose 29.73%. The simulated portfolio's loss ratio stood at 120.58% with a claim frequency of 0.0614 claims per policy-year, indicating claims outpacing earned premium despite the improving severity trend.",
+        "tolerance": 0.005,
+        "total_numbers": 8,
+        "matched": 8,
+        "flagged": 0,
+        "hallucination_rate": 0.0,
+        "matches": [
+          {
+            "raw_text": "144",
+            "parsed_value": 144.0,
+            "matched_fact_key": "accident_count",
+            "fact_value": 144.0,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "42",
+            "parsed_value": 42.0,
+            "matched_fact_key": "fatality_count",
+            "fact_value": 42.0,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "154",
+            "parsed_value": 154.0,
+            "matched_fact_key": "total_injury_count",
+            "fact_value": 154.0,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "13.966",
+            "parsed_value": 13.966,
+            "matched_fact_key": "severity_index_coarse",
+            "fact_value": 13.966,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "4.72%",
+            "parsed_value": 4.72,
+            "matched_fact_key": "severity_index_coarse_yoy_pct_change",
+            "fact_value": -4.72,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "29.73%",
+            "parsed_value": 29.73,
+            "matched_fact_key": "accident_count_yoy_pct_change",
+            "fact_value": 29.73,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "120.58%",
+            "parsed_value": 120.58,
+            "matched_fact_key": "loss_ratio",
+            "fact_value": 120.58,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "0.0614",
+            "parsed_value": 0.0614,
+            "matched_fact_key": "claim_frequency",
+            "fact_value": 0.0614,
+            "relative_error": 0.0,
+            "status": "matched"
+          }
+        ]
+      }
+    },
+    {
+      "scope_key": "province_phitsanulok_2025",
+      "scope_label": "Phitsanulok, 2025",
+      "geography_sk": 53,
+      "start_date": "2025-01-01",
+      "end_date": "2025-12-31",
+      "generated_at": "2026-08-25T09:46:08.726734+00:00",
+      "insight": {
+        "narrative": "In Phitsanulok in 2025, 197 accidents resulted in 50 fatalities and 202 injuries, yielding a severity index of 12.36 — down 3.07% year-over-year even as accident counts rose 28.76% versus the prior year. The simulated portfolio recorded a claim frequency of 0.0601 claims per policy-year alongside a loss ratio of 115.5%, indicating claims outpaced earned premium over the period.",
+        "self_reported_citations": [
+          {
+            "fact_key": "accident_count",
+            "value_as_used": "197"
+          },
+          {
+            "fact_key": "fatality_count",
+            "value_as_used": "50"
+          },
+          {
+            "fact_key": "total_injury_count",
+            "value_as_used": "202"
+          },
+          {
+            "fact_key": "severity_index_coarse",
+            "value_as_used": "12.36"
+          },
+          {
+            "fact_key": "severity_index_coarse_yoy_pct_change",
+            "value_as_used": "-3.07%"
+          },
+          {
+            "fact_key": "accident_count_yoy_pct_change",
+            "value_as_used": "28.76%"
+          },
+          {
+            "fact_key": "claim_frequency",
+            "value_as_used": "0.0601"
+          },
+          {
+            "fact_key": "loss_ratio",
+            "value_as_used": "115.5%"
+          }
+        ],
+        "model": "claude-sonnet-5",
+        "scope_label": "Phitsanulok, 2025"
+      },
+      "verification": {
+        "scope_label": "Phitsanulok, 2025",
+        "model": "claude-sonnet-5",
+        "narrative": "In Phitsanulok in 2025, 197 accidents resulted in 50 fatalities and 202 injuries, yielding a severity index of 12.36 — down 3.07% year-over-year even as accident counts rose 28.76% versus the prior year. The simulated portfolio recorded a claim frequency of 0.0601 claims per policy-year alongside a loss ratio of 115.5%, indicating claims outpaced earned premium over the period.",
+        "tolerance": 0.005,
+        "total_numbers": 8,
+        "matched": 8,
+        "flagged": 0,
+        "hallucination_rate": 0.0,
+        "matches": [
+          {
+            "raw_text": "197",
+            "parsed_value": 197.0,
+            "matched_fact_key": "accident_count",
+            "fact_value": 197.0,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "50",
+            "parsed_value": 50.0,
+            "matched_fact_key": "fatality_count",
+            "fact_value": 50.0,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "202",
+            "parsed_value": 202.0,
+            "matched_fact_key": "total_injury_count",
+            "fact_value": 202.0,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "12.36",
+            "parsed_value": 12.36,
+            "matched_fact_key": "severity_index_coarse",
+            "fact_value": 12.3569,
+            "relative_error": 0.0002508719824551369,
+            "status": "matched"
+          },
+          {
+            "raw_text": "3.07%",
+            "parsed_value": 3.07,
+            "matched_fact_key": "severity_index_coarse_yoy_pct_change",
+            "fact_value": -3.07,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "28.76%",
+            "parsed_value": 28.76,
+            "matched_fact_key": "accident_count_yoy_pct_change",
+            "fact_value": 28.76,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "0.0601",
+            "parsed_value": 0.0601,
+            "matched_fact_key": "claim_frequency",
+            "fact_value": 0.0601,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "115.5%",
+            "parsed_value": 115.5,
+            "matched_fact_key": "loss_ratio",
+            "fact_value": 115.5,
+            "relative_error": 0.0,
+            "status": "matched"
+          }
+        ]
+      }
+    },
+    {
+      "scope_key": "province_prachin_buri_2025",
+      "scope_label": "Prachin Buri, 2025",
+      "geography_sk": 16,
+      "start_date": "2025-01-01",
+      "end_date": "2025-12-31",
+      "generated_at": "2026-08-25T09:46:13.018939+00:00",
+      "insight": {
+        "narrative": "In Prachin Buri during 2025, 249 accidents resulted in 59 fatalities and 258 injuries, yielding a severity index of 11.71 — up 62.25% year-over-year, far outpacing the 22.06% rise in accident volume. This intensifying severity coincides with a simulated portfolio loss ratio of 64.67% and a claim frequency of 0.0601 claims per policy-year.",
+        "self_reported_citations": [
+          {
+            "fact_key": "accident_count",
+            "value_as_used": "249"
+          },
+          {
+            "fact_key": "fatality_count",
+            "value_as_used": "59"
+          },
+          {
+            "fact_key": "total_injury_count",
+            "value_as_used": "258"
+          },
+          {
+            "fact_key": "severity_index_coarse",
+            "value_as_used": "11.71"
+          },
+          {
+            "fact_key": "severity_index_coarse_yoy_pct_change",
+            "value_as_used": "62.25%"
+          },
+          {
+            "fact_key": "accident_count_yoy_pct_change",
+            "value_as_used": "22.06%"
+          },
+          {
+            "fact_key": "loss_ratio",
+            "value_as_used": "64.67%"
+          },
+          {
+            "fact_key": "claim_frequency",
+            "value_as_used": "0.0601"
+          }
+        ],
+        "model": "claude-sonnet-5",
+        "scope_label": "Prachin Buri, 2025"
+      },
+      "verification": {
+        "scope_label": "Prachin Buri, 2025",
+        "model": "claude-sonnet-5",
+        "narrative": "In Prachin Buri during 2025, 249 accidents resulted in 59 fatalities and 258 injuries, yielding a severity index of 11.71 — up 62.25% year-over-year, far outpacing the 22.06% rise in accident volume. This intensifying severity coincides with a simulated portfolio loss ratio of 64.67% and a claim frequency of 0.0601 claims per policy-year.",
+        "tolerance": 0.005,
+        "total_numbers": 8,
+        "matched": 8,
+        "flagged": 0,
+        "hallucination_rate": 0.0,
+        "matches": [
+          {
+            "raw_text": "249",
+            "parsed_value": 249.0,
+            "matched_fact_key": "accident_count",
+            "fact_value": 249.0,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "59",
+            "parsed_value": 59.0,
+            "matched_fact_key": "fatality_count",
+            "fact_value": 59.0,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "258",
+            "parsed_value": 258.0,
+            "matched_fact_key": "total_injury_count",
+            "fact_value": 258.0,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "11.71",
+            "parsed_value": 11.71,
+            "matched_fact_key": "severity_index_coarse",
+            "fact_value": 11.7056,
+            "relative_error": 0.0003758884636413685,
+            "status": "matched"
+          },
+          {
+            "raw_text": "62.25%",
+            "parsed_value": 62.25,
+            "matched_fact_key": "severity_index_coarse_yoy_pct_change",
+            "fact_value": 62.25,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "22.06%",
+            "parsed_value": 22.06,
+            "matched_fact_key": "accident_count_yoy_pct_change",
+            "fact_value": 22.06,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "64.67%",
+            "parsed_value": 64.67,
+            "matched_fact_key": "loss_ratio",
+            "fact_value": 64.67,
+            "relative_error": 0.0,
+            "status": "matched"
+          },
+          {
+            "raw_text": "0.0601",
+            "parsed_value": 0.0601,
+            "matched_fact_key": "claim_frequency",
+            "fact_value": 0.0601,
+            "relative_error": 0.0,
+            "status": "matched"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -24,6 +24,7 @@ from dashboard.lib.data_access import (
     top_province_months,
 )
 from dashboard.lib.filters import render_filters
+from dashboard.lib.insights import render_insight_panel
 from dashboard.lib.theme import (
     GRIDLINE,
     MUTED_INK,
@@ -33,6 +34,7 @@ from dashboard.lib.theme import (
     inject_theme,
     page_header,
 )
+from rri.insight.facts import InsightScope
 
 st.set_page_config(page_title="Spatial Risk | SiamShield", page_icon="🗺️", layout="wide")
 inject_theme()
@@ -151,6 +153,23 @@ if not map_df.empty:
                 margin={"l": 0, "r": 0, "t": 0, "b": 0}, map_style="carto-positron"
             )
             st.plotly_chart(fig_detail, width="stretch")
+
+        slug = selected_name.lower().replace(" ", "_") if selected_name else ""
+        render_insight_panel(
+            title=f"AI Insight — {selected_name}",
+            scope_key=f"province_{slug}_2025",
+            live_scope=InsightScope(
+                label=f"{selected_name}, {f.start_date} to {f.end_date}",
+                start_date=f.start_date,
+                end_date=f.end_date,
+                geography_sk=selected_sk,
+            ),
+        )
+        st.caption(
+            "Cached AI insights are pre-built for the province, 2025 scope (CLAUDE.md "
+            "Phase 8) — 'Regenerate live' (if available) covers the exact sidebar date "
+            "range instead."
+        )
 
 st.markdown("#### Frequency vs. severity, by province")
 st.caption(

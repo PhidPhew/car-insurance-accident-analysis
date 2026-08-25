@@ -75,6 +75,11 @@ class Settings(BaseSettings):
 
     random_seed: int = 42
 
+    #: Model used for AI insight generation (Phase 8). Configurable rather
+    #: than hard-coded so the project doesn't pin to a model string that
+    #: ages out -- override with RRI_INSIGHT_MODEL.
+    insight_model: str = "claude-sonnet-5"
+
     # -- derived paths (computed in model_post_init, not stored as literal
     #    defaults, since they all depend on base_dir) --
     config_dir: Path = Path()
@@ -86,6 +91,7 @@ class Settings(BaseSettings):
     warehouse_dir: Path = Path()
     exports_dir: Path = Path()
     models_dir: Path = Path()
+    insights_dir: Path = Path()
     notebooks_dir: Path = Path()
     reports_dir: Path = Path()
     logs_dir: Path = Path()
@@ -103,6 +109,7 @@ class Settings(BaseSettings):
         self.warehouse_dir = self.data_dir / "30_warehouse"
         self.exports_dir = self.data_dir / "40_exports"
         self.models_dir = self.data_dir / "50_models"
+        self.insights_dir = self.data_dir / "60_insights"
         self.notebooks_dir = base / "notebooks"
         self.reports_dir = base / "reports"
         self.logs_dir = base / "logs"
@@ -127,6 +134,7 @@ class Settings(BaseSettings):
             self.warehouse_dir,
             self.exports_dir,
             self.models_dir,
+            self.insights_dir,
             self.reports_dir,
             self.logs_dir,
             self.fixtures_dir,

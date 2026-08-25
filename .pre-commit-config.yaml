@@ -27,6 +27,8 @@ repos:
           - streamlit
           - types-python-dateutil
           - duckdb
+          - anthropic
+          - python-dotenv
         pass_filenames: false
         args: []
 
