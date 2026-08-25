@@ -763,3 +763,63 @@ verified that one number was even the right shape of thing to compute.
 Being told to verify isn't a one-time gate; the same measured, evidence-based
 discipline has to be re-applied to your own previous fix, not just the
 original guess.
+
+---
+
+## 2026-08-25 — Phase 8: the whole phase is an AI-usage case study, not just an entry
+
+**Phase / task:** Phase 8, all steps (`src/rri/insight/`, `notebooks/07_ai_insight.ipynb`)
+
+This phase's entire deliverable is a system for not trusting AI-generated
+numbers unchecked, so it doubles as its own disclosure: every design choice
+below exists because an LLM's first draft is fluent but not verifiably
+correct, and the fix was to make the *checking* deterministic rather than
+trust a better prompt.
+
+**Judgment call 1 -- don't trust the model's self-reported citations, even
+though asking for them is convenient.** The initial instinct (and what the
+system prompt still asks the model to do, for a useful cross-reference) was
+to have Claude report which `fact_key` it used for each number and grade
+against that list directly. That's the wrong ground truth: it grades the
+model's *claim* about what it did, not what it actually wrote. `verify.py`
+instead re-parses every number out of the narrative *prose itself* via regex
+and only uses the self-reported list as a hint to label which fact a number
+was probably meant to represent -- the pass/fail comparison always goes back
+to the real fact value. Proven necessary, not just theoretical: in the
+project's own test suite (`test_verify_insight_does_not_trust_self_reported_citation_value`),
+a citation claiming the correct value while the prose states a different one
+is correctly flagged only because the prose is the thing checked.
+
+**Judgment call 2 -- percent-change facts get rephrased directionally, and
+the verifier has to tolerate that without weakening what "correct" means.**
+`severity_index_coarse_yoy_pct_change` is stored as a signed number (e.g.
+-5.23), but the model's prose almost always renders a negative delta as
+"down 5.23%" -- no minus sign in the text. A naive exact-match verifier would
+flag every single correctly-stated percent-change as a hallucination. The
+fix (`_relative_error` comparing `abs(parsed)` to `abs(fact.value)`) is
+deliberate and documented, not a loosening for convenience: it still catches
+a wrong *magnitude* (the planted-error test proves a 65.3% loss ratio
+misstated as 72.1% is flagged), it just doesn't punish a correct number for
+losing its sign to natural English phrasing.
+
+**Judgment call 3 -- bare years needed an explicit, narrow exclusion, not a
+blanket "ignore small numbers" rule.** Early manual testing showed narrative
+openers like "In 2025, ..." would parse "2025" as an unmatched number and
+inflate the measured hallucination rate with a false positive -- the scope
+label itself, not a fact. The fix excludes only bare 4-digit integers in
+2000-2099 with no comma, decimal, or percent sign (`_is_calendar_year_token`)
+-- narrow enough that a real fabricated 4-digit figure formatted with a
+comma or percent sign still gets caught (covered by
+`test_parse_numbers_keeps_four_digit_number_with_comma_or_percent`).
+
+**Why this matters for the assignment:** the graded core of this phase
+(`verify.py`) is stronger for having been built adversarially against the
+model's own first-draft outputs rather than designed on paper and assumed
+correct -- each of the three judgment calls above came from an actual
+narrative Claude generated exposing a gap, not from anticipating the gap in
+advance. The measured result across all 5 committed cache scopes is 0/52
+numbers flagged (0.0% hallucination rate); the planted-error demonstration
+(`notebooks/07_ai_insight.ipynb` §4, `test_verify_insight_flags_a_planted_wrong_number`)
+is kept explicitly and visibly separate from that number in every place it's
+reported, per the project owner's explicit instruction not to let a
+deliberately-corrupted demo rate read as the system's real operating rate.
