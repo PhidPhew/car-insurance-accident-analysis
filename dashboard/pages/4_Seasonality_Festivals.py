@@ -114,8 +114,14 @@ else:
     comparison["period"] = pd.Categorical(comparison["period"], categories=order, ordered=True)
     comparison = comparison.sort_values("period")
 
-    col1, col2, col3 = st.columns(3)
-    for col, (_, row) in zip([col1, col2, col3], comparison.iterrows(), strict=True):
+    # `comparison` groups accidents into up to 3 periods (Songkran / New Year /
+    # Other days) -- but a narrow date filter can easily exclude one or both
+    # holiday windows, leaving 1 or 2 rows. st.columns(3) hardcoded here
+    # crashed (`zip() argument 2 is shorter than argument 1`, strict=True)
+    # whenever comparison had fewer than 3 rows. len(comparison) is always
+    # >= 1 here (the `comparison.empty` branch above already handles 0).
+    cols = st.columns(len(comparison))
+    for col, (_, row) in zip(cols, comparison.iterrows(), strict=True):
         with col:
             st.markdown(f"**{row['period']}**")
             st.metric("Accidents / day", f"{row['accidents_per_day']:.1f}")
