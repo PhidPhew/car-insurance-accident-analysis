@@ -87,7 +87,7 @@ Streamlit dashboard 8 หน้า ตอบคำถามธุรกิจท
 (CLAUDE.md N10) อ่านข้อมูลจาก `data/30_warehouse/warehouse.duckdb` และเรียกโมเดลที่ persist
 ไว้แล้วเท่านั้น ไม่มีการ recompute cleaning/feature/training ใน dashboard code
 
-**Public URL:** _TODO — ใส่ URL จริงจาก Streamlit Community Cloud ที่นี่_
+**Public URL:** https://car-insurance-accident-analysis-fst5y6vwgfrfd84gc6nowq.streamlit.app
 
 รันในเครื่องตัวเอง:
 
