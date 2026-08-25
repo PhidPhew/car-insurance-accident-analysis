@@ -25,6 +25,7 @@ from dashboard.lib.data_access import (
 )
 from dashboard.lib.filters import render_filters
 from dashboard.lib.formatting import fmt_index, fmt_int, fmt_money_thb, fmt_pct
+from dashboard.lib.insights import render_insight_panel
 from dashboard.lib.theme import (
     BLUE,
     GRIDLINE,
@@ -96,6 +97,12 @@ cards = [
     ),
 ]
 render_kpi_row(cards)
+
+render_insight_panel(title="AI Insight — National overview, 2025", scope_key="national_2025")
+st.caption(
+    "This narrative and its verification are fixed to the national, full-2025 scope "
+    "(CLAUDE.md Phase 8) — independent of the sidebar filters above."
+)
 
 st.markdown("#### Monthly accident trend")
 trend = monthly_trend(f)

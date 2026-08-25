@@ -28,6 +28,17 @@ data/50_models/*
 data/10_staging/*
 !data/10_staging/rainfall.parquet
 
+# Exception (Phase 8, 2026-08-25): the AI insight cache -- narratives +
+# their verification records for a fixed scope set (rri.insight.cache),
+# same no-persistent-storage reason as the warehouse/model files above.
+# Streamlit Community Cloud serves this file directly, no live Anthropic
+# API call and no key needed at serve time. ai_verification_log.csv (the
+# running audit trail, regenerated on every cache build) is NOT committed --
+# same treatment as logs/ below.
+!data/60_insights/
+data/60_insights/*
+!data/60_insights/insights_cache.json
+
 # Warehouse / DB files (elsewhere in the repo — not the exception above)
 *.duckdb.wal
 *.sqlite
