@@ -29,6 +29,7 @@ from dashboard.lib.theme import (
     GRIDLINE,
     MUTED_INK,
     PRIMARY_INK,
+    REGION_COLOR_MAP,
     bq_tag,
     inject_theme,
     page_header,
@@ -81,7 +82,7 @@ else:
             "severity_index_coarse": "Severity index (coarse)",
             "region": "Region",
         },
-        color_discrete_sequence=px.colors.qualitative.Set2,
+        color_discrete_map=REGION_COLOR_MAP,
     )
     fig.update_layout(
         height=420,

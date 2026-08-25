@@ -28,6 +28,7 @@ from dashboard.lib.theme import (
     GRIDLINE,
     MUTED_INK,
     PRIMARY_INK,
+    REGION_COLOR_MAP,
     bq_tag,
     inject_theme,
     page_header,
@@ -169,7 +170,7 @@ fig = px.scatter(
         "severity_index_coarse": "Severity index (coarse)",
         "region": "Region",
     },
-    color_discrete_sequence=px.colors.qualitative.Set2,
+    color_discrete_map=REGION_COLOR_MAP,
 )
 fig.update_layout(
     height=440,
@@ -236,7 +237,7 @@ fig2 = px.scatter(
         "severity_index_coarse": "Severity index (coarse)",
         "region": "Region",
     },
-    color_discrete_sequence=px.colors.qualitative.Set2,
+    color_discrete_map=REGION_COLOR_MAP,
 )
 fig2.update_layout(
     height=400,

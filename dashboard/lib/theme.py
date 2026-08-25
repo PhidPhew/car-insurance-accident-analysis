@@ -37,6 +37,21 @@ CATEGORICAL = [
     "#e34948",
 ]
 
+#: Fixed region -> hue assignment, used everywhere region is a color
+#: dimension (Spatial Risk, EV Analysis). Plotly assigns categorical colors
+#: by first-appearance order in the data by default, which would let the
+#: same region take a different color on different pages/filters -- the
+#: dataviz skill's rule is "color follows the entity, never its rank."
+REGION_COLOR_MAP = {
+    "Central": CATEGORICAL[0],
+    "North": CATEGORICAL[1],
+    "Northeast": CATEGORICAL[2],
+    "East": CATEGORICAL[3],
+    "West": CATEGORICAL[4],
+    "South": CATEGORICAL[5],
+    "Unknown": MUTED_INK,
+}
+
 
 def inject_theme() -> None:
     st.markdown(
