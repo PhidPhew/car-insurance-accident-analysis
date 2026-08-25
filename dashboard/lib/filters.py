@@ -31,22 +31,64 @@ def render_filters() -> Filters:
     st.sidebar.header("Filters")
 
     default_end = min(max_date, date(2025, 12, 31))
-    date_range = st.sidebar.date_input(
-        "Date range",
-        value=(min_date, default_end),
-        min_value=min_date,
-        max_value=max_date,
-        key="filter_date_range",
-        help="Defaults to the last complete year (2026 has ~4 months of data "
-        "and is excluded from trend comparisons by default — extend the range "
-        "to include it).",
-    )
-    if isinstance(date_range, tuple) and len(date_range) == 2:
-        start_date, end_date = date_range
+
+    # Two independent single-date widgets, deliberately NOT one range
+    # st.date_input. Streamlit's range date_input is a BaseWeb
+    # DateRangePicker with a client-side (frontend) defect: clicking the
+    # currently-highlighted start boundary of an already-complete range
+    # silently swaps in the OTHER endpoint as the new start and jumps the
+    # calendar to a different month -- confirmed via a live Playwright
+    # browser session AND reproduced in a minimal repro with zero relation
+    # to this app's code (a bare `st.date_input` with no `value=` argument
+    # at all, in an otherwise-empty script). It is not something any
+    # Python-side widget invocation can fix -- AppTest cannot see it either,
+    # since AppTest drives session_state directly and never exercises the
+    # real frontend calendar. Do not "simplify" this back into one range
+    # widget; see tests/unit/test_filters.py's docstring for the same note.
+    #
+    # Seeding each key's session_state once (never re-passing `value=` on
+    # every rerun) is still the idiomatic pattern -- kept here for the same
+    # reason it mattered for the range widget, even though single-date
+    # inputs aren't known to have the swap defect.
+    if "filter_start_date" not in st.session_state:
+        st.session_state["filter_start_date"] = min_date
+    if "filter_end_date" not in st.session_state:
+        st.session_state["filter_end_date"] = default_end
+
+    date_col1, date_col2 = st.sidebar.columns(2)
+    with date_col1:
+        picked_start = st.date_input(
+            "Start date",
+            min_value=min_date,
+            max_value=max_date,
+            key="filter_start_date",
+        )
+    with date_col2:
+        picked_end = st.date_input(
+            "End date",
+            min_value=min_date,
+            max_value=max_date,
+            key="filter_end_date",
+            help="Defaults to the last complete year (2026 has ~4 months of data "
+            "and is excluded from trend comparisons by default — extend the range "
+            "to include it).",
+        )
+
+    if picked_start <= picked_end:
+        start_date, end_date = picked_start, picked_end
+        st.session_state["_last_complete_date_range"] = (start_date, end_date)
     else:
-        # Mid-selection (only the start date picked so far) — hold the previous
-        # complete range rather than crashing on an incomplete widget value.
-        start_date, end_date = min_date, default_end
+        # Two independent inputs means an invalid order (end before start) is
+        # now reachable and is this code's responsibility to handle -- hold
+        # the last valid range and tell the user why, rather than crash or
+        # silently invert/clamp their explicit picks.
+        st.sidebar.warning(
+            f"Start date ({picked_start}) is after end date ({picked_end}) — "
+            "holding the last valid range until this is corrected."
+        )
+        start_date, end_date = st.session_state.get(
+            "_last_complete_date_range", (min_date, default_end)
+        )
 
     province_options = provinces["province_en"].tolist()
     selected_provinces = st.sidebar.multiselect(
