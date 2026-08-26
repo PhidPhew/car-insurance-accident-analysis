@@ -175,31 +175,64 @@ def latest_exposure_all() -> pd.DataFrame:
     ).fetchdf()
 
 
+#: Below this many pooled claims, a month-scoped current-economics figure is
+#: mostly sampling noise (a handful of claims in one calendar month, pooled
+#: across the underwriting window's 4 covered years, for a small province) --
+#: e.g. Mae Hong Son/passenger_car has exactly 0 claims in January across all
+#: 4 years (a confident-looking 0.0% loss ratio that means nothing), while
+#: Ang Thong/pickup has 9 (a 112.9% loss ratio that's mostly noise). Same
+#: "don't trust a tiny sample" convention as dashboard/lib/data_access.py's
+#: MIN_ACCIDENTS_FOR_ALERT/MIN_ACCIDENTS_FOR_PROVINCE_MONTH.
+MIN_CLAIMS_FOR_STABLE_ECONOMICS = 10
+
+
 @st.cache_data(show_spinner=False)
-def current_segment_economics(province_th: str, vehicle_group: str) -> dict[str, float] | None:
-    """Current simulated premium/claims for one (province, vehicle_group), all
-    cover classes combined, over the full underwriting window."""
+def current_segment_economics(
+    province_th: str, vehicle_group: str, month: int
+) -> dict[str, float] | None:
+    """Current simulated premium/claims for one (province, vehicle_group),
+    all cover classes combined, scoped to ONE calendar month (all years in
+    the underwriting window pooled) -- the same month `run_scenario`'s
+    risk_multiplier is computed for.
+
+    Deliberately month-scoped, not pooled across the full year: the
+    multiplier this gets combined with (`risk_multiplier` in `run_scenario`)
+    is itself a January-vs-January-book-average (or whichever month)
+    relative-risk ratio, not an annual one -- confirmed by computing it for
+    all 12 months and finding it swings 0.21-0.39 for the same segment
+    purely from which month's cross-section is used as the reference.
+    Multiplying an ALL-MONTHS-POOLED premium by a SINGLE-MONTH relative-risk
+    ratio mixed two incompatible time bases and produced a repriced loss
+    ratio that could mechanically exceed 100% (Bangkok/motorcycle/January:
+    128%) purely from that mismatch, independent of whether the segment's
+    risk is genuinely high. Scoping both sides to the same month removes
+    that artifact (same case: 86.8%, still a real underwriting warning, just
+    no longer inflated by mismatched time bases -- see docs/ai_usage_log.md
+    or the Pricing Simulator page caption for the full reasoning)."""
     con = get_connection()
     row = con.execute(
         """
         SELECT
             SUM(u.earned_premium)::DOUBLE AS earned_premium,
             SUM(u.incurred_claim_amount)::DOUBLE AS incurred_claim_amount,
-            SUM(u.policies_in_force)::DOUBLE AS policy_months
+            SUM(u.policies_in_force)::DOUBLE AS policy_months,
+            SUM(u.claim_count)::DOUBLE AS claim_count
         FROM fact_underwriting_monthly u
         JOIN dim_geography g ON u.geography_sk = g.geography_sk
         JOIN dim_vehicle v ON u.vehicle_sk = v.vehicle_sk
-        WHERE g.province_th = ? AND v.vehicle_group = ?
+        JOIN dim_date d ON u.date_sk = d.date_sk
+        WHERE g.province_th = ? AND v.vehicle_group = ? AND d.month = ?
         """,
-        [province_th, vehicle_group],
+        [province_th, vehicle_group, month],
     ).fetchone()
     if row is None or not row[2]:
         return None
-    earned_premium, incurred_claim_amount, policy_months = row
+    earned_premium, incurred_claim_amount, policy_months, claim_count = row
     return {
         "earned_premium": earned_premium,
         "incurred_claim_amount": incurred_claim_amount,
         "policy_months": policy_months,
+        "claim_count": claim_count,
         "current_annual_premium_per_policy": earned_premium / (policy_months / 12),
         "current_loss_ratio": (incurred_claim_amount / earned_premium) if earned_premium else None,
     }

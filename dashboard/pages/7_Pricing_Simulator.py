@@ -17,6 +17,7 @@ import streamlit as st
 
 from dashboard.lib.formatting import fmt_money_thb, fmt_pct
 from dashboard.lib.pricing import (
+    MIN_CLAIMS_FOR_STABLE_ECONOMICS,
     current_segment_economics,
     geography_attributes,
     historical_month_rain,
@@ -92,10 +93,10 @@ rain_override = st.slider(
 
 with st.spinner("Running the model..."):
     result = run_scenario(province_th, vehicle_group, month, rain_override)
-    economics = current_segment_economics(province_th, vehicle_group)
+    economics = current_segment_economics(province_th, vehicle_group, month)
 
 if result is None or economics is None:
-    st.warning("No data available for this province/vehicle group combination.")
+    st.warning("No data available for this province/vehicle group/month combination.")
     st.stop()
 
 st.markdown("#### Model output")
@@ -113,49 +114,68 @@ cards = [
 render_kpi_row(cards)
 
 st.markdown("#### Repricing impact")
-current_premium = economics["current_annual_premium_per_policy"]
-current_loss_ratio = economics["current_loss_ratio"]
-repriced_premium = current_premium * result.risk_multiplier
-repriced_loss_ratio = (
-    current_loss_ratio / result.risk_multiplier
-    if current_loss_ratio is not None and result.risk_multiplier
-    else None
-)
-premium_change_pct = (result.risk_multiplier - 1) * 100
-lapse_risk = lapse_risk_estimate(premium_change_pct)
 
-cards2 = [
-    kpi_card_html("Current premium/policy (annual)", fmt_money_thb(current_premium), None),
-    kpi_card_html(
-        "Repriced premium/policy (annual)",
-        fmt_money_thb(repriced_premium),
-        premium_change_pct,
-        caveat="vs. current, this segment/scenario",
-    ),
-    kpi_card_html(
-        "Current loss ratio", fmt_pct(current_loss_ratio, 1) if current_loss_ratio else "N/A", None
-    ),
-    kpi_card_html(
-        "Repriced loss ratio",
-        fmt_pct(repriced_loss_ratio, 1) if repriced_loss_ratio else "N/A",
-        None,
-        caveat="Holding claims experience fixed, premium repriced by the risk multiplier.",
-    ),
-    kpi_card_html(
-        "Estimated lapse risk",
-        fmt_pct(lapse_risk, 0),
-        None,
-        higher_is_worse=True,
-        caveat="Illustrative heuristic, not fitted to data — see dashboard.lib."
-        "pricing's module docstring.",
-    ),
-]
-render_kpi_row(cards2)
+if economics["claim_count"] < MIN_CLAIMS_FOR_STABLE_ECONOMICS:
+    st.warning(
+        f"Low confidence: only {economics['claim_count']:.0f} claims for "
+        f"{province_en} / {vehicle_labels[vehicle_group]} in {month_names[month - 1]}, "
+        f"pooled across every year in the underwriting window (fewer than "
+        f"{MIN_CLAIMS_FOR_STABLE_ECONOMICS}). The current premium/loss ratio for this "
+        "exact month is mostly sampling noise for a segment this thin — repricing "
+        "cards are hidden rather than shown with false confidence. Try a different "
+        "month, or a larger province, to see this panel."
+    )
+else:
+    current_premium = economics["current_annual_premium_per_policy"]
+    current_loss_ratio = economics["current_loss_ratio"]
+    repriced_premium = current_premium * result.risk_multiplier
+    repriced_loss_ratio = (
+        current_loss_ratio / result.risk_multiplier
+        if current_loss_ratio is not None and result.risk_multiplier
+        else None
+    )
+    premium_change_pct = (result.risk_multiplier - 1) * 100
+    lapse_risk = lapse_risk_estimate(premium_change_pct)
+
+    cards2 = [
+        kpi_card_html("Current premium/policy (annual)", fmt_money_thb(current_premium), None),
+        kpi_card_html(
+            "Repriced premium/policy (annual)",
+            fmt_money_thb(repriced_premium),
+            premium_change_pct,
+            caveat="Illustrative and unclamped (risk score x current premium) — not a "
+            "filed rate; real rating factors are usually capped/floored, this isn't.",
+        ),
+        kpi_card_html(
+            "Current loss ratio",
+            fmt_pct(current_loss_ratio, 1) if current_loss_ratio else "N/A",
+            None,
+        ),
+        kpi_card_html(
+            "Repriced loss ratio",
+            fmt_pct(repriced_loss_ratio, 1) if repriced_loss_ratio else "N/A",
+            None,
+            caveat="Claims held at actual; premium repriced by predicted risk. Above "
+            "~65% means repricing to this risk score would underprice the segment "
+            "against real claims — a warning, not a contradiction.",
+        ),
+        kpi_card_html(
+            "Estimated lapse risk",
+            fmt_pct(lapse_risk, 0),
+            None,
+            higher_is_worse=True,
+            caveat="Illustrative heuristic, not fitted to data — see dashboard.lib."
+            "pricing's module docstring.",
+        ),
+    ]
+    render_kpi_row(cards2)
 
 st.caption(
     f"<span style='color:{MUTED_INK}'>Model: LightGBM frequency/severity (Phase 5, "
     "won the frequency Gini vs. the GLM baseline). Current premium/loss ratio: "
-    "fact_underwriting_monthly, full 2022-01 to 2025-12 window, all cover classes "
-    "combined for this (province, vehicle group).</span>",
+    "fact_underwriting_monthly, scoped to the selected month only (all years in the "
+    "2022-01 to 2025-12 underwriting window pooled), all cover classes combined for "
+    "this (province, vehicle group) — same month basis as the risk multiplier above, "
+    "not an annual figure.</span>",
     unsafe_allow_html=True,
 )
